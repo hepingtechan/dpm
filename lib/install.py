@@ -35,7 +35,7 @@ def download_src(username, src_name, src_type):
     tmpdir_path = os.path.join(TMP_DIR, tmp_name)
     if not os.path.isdir(tmpdir_path):os.mkdir(tmpdir_path)
     src_path = os.path.join(tmpdir_path, src_name)  
-    print 'install.download_src() is : %s' % src_path  
+     
     with open(src_path, 'wb') as f:
         f.write(ret)
     
