@@ -17,22 +17,25 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
-import bson
+from lib.log import log_err
+from lib.bson import dumps, loads
 
 def pack(op, args, kwargs):
-    if type(op) != str or type(args) != list or type(kwargs) != dict:
+    if type(op) != str or type(args) != tuple or type(kwargs) != dict:
+        log_err('lib.package', 'failed to pack, invalid type')
         return
-    buf = {'op':op, 'args':args, 'kwargs':kwargs}
-    return bson.dumps(buf)
+    buf = {'op': op, 'args': args, 'kwargs': kwargs}
+    return dumps(buf)
 
 def unpack(buf):
-    tmp = bson.loads(buf)
+    tmp = loads(buf)
     if type(tmp) != dict or not tmp.has_key('op') or not tmp.has_key('args') or not tmp.has_key('kwargs'):
+        log_err('lib.package', 'failed to unpack, invalid type')
         return
     op = tmp['op']
     args = tmp['args']
     kwargs = tmp['kwargs']
     if type(op) != str or type(args) != list or type(kwargs) != dict:
+        log_err('lib.package', 'failed to unpack, invalid arguments')
         return
     return (op, args, kwargs)

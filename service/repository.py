@@ -1,7 +1,7 @@
 #      repository.py
 #      
-#      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
-#      
+#      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>,  Xu Tian <tianxu@iscas.ac.cn>
+#
 #      This program is free software; you can redistribute it and/or modify
 #      it under the terms of the GNU General Public License as published by
 #      the Free Software Foundation; either version 2 of the License, or
@@ -17,65 +17,74 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
+import os
+import time
+from threading import Lock
+from lib.db import Database
 from threading import Thread
-
-from rpcserver import RPCServer
-from ftpclient import FTPClient
-from ftpserver import FTPServer
-from lib.log import log_debug
-from lib.upload_register import write_upload_log
-
+from lib.log import log_debug, log_err
+from conf.config import REPOSITORY_PORT
+from component.ftpclient import FTPClient
+from component.ftpserver import FTPServer
+from component.rpcserver import RPCServer
 
 class Repository(RPCServer):
     def __init__(self, addr, port):
-        super(Repository, self).__init__(addr, port)
-        self.ftpclient = FTPClient()
-        self.ftpserver = FTPServer()
-    
-    def upload(self, username, name, version, src_type, buf):
-        ret = self.upload_src(name, version, buf)
-        self.upload_register(username, name, version, src_type)
+        RPCServer.__init__(self, addr, port)
+        self._ftpclient = FTPClient()
+        self._ftpserver = FTPServer()
+        self._db = Database(local=False)
+        self._lock = Lock()
         
-    def upload_src(self, name, version, buf):
-        addr, port = calculate_the_ftpserver_addr()
-        ret = self.ftpclient.upload(addr, port, name, version, buf)
-        log_debug('Repository.upload()', 'the return of FTPClient.upload() is : %s' % str(ret))
-        return ret
+    def _get_addr(self, package):
+        return ('127.0.0.1', 21)
     
-    def upload_register(self, username, name, version, src_type):
-        write_upload_log(username, name, version, src_type)
-        
-    def install(self, username, name, version, src_type):
-        pass
-        #return self.download_src(name, version, src_type)
-        
+    def _upload(self, package, version, buf):
+        addr, port = self._get_addr(package)
+        self._ftpclient.upload(addr, port, package, version, buf)
+       
+    def upload(self, uid, package, version, buf):
+        self._lock.acquire()
+        try:
+            owner, ver = self._db.get_version(uid, package)
+            if owner and owner != uid:
+                log_err('Repository', 'failed to upload, invalid owner, package=%s, version=%s' % (str(package), str(version)))
+                return False
+            if ver == version:#The version of package has been uploaded.
+                log_err('Repository', 'failed to upload, invalid version, package=%s, version=%s' % (str(package), str(version)))
+                return False
+            else:
+                self._upload(package, version, buf)
+                self._db.set_package(uid, package, version, '')
+                if not ver or ver < version:
+                    self._db.set_version(uid, package, version)
+                log_debug('Repository', 'finished uploading, package=%s, version=%s' % (str(package), str(version)))
+                return True
+        finally:
+            self._lock.release()
     
-    def download_src(self, username, src_name, src_type):
-        addr, port = calculate_the_ftpserver_addr()
-        ret = self.ftpclient.download(addr, port, src_name, src_type)
-        return ret
+    def download(self, package, version):
+        log_debug('Repository', 'start to download, package=%s, version=%s' % (str(package), str(version)))
+        addr, port = self._get_addr(package)
+        uid, ver = self._db.get_version(package)
+        if not version:
+            version = ver
+        if not self._db.has_package(uid, package, version):
+            log_err('Repository', 'failed to download, invalid version, package=%s, version=%s' % (str(package), str(version)))
+            return
+        return self._ftpclient.download(addr, port, package, version)
     
-    def install_register(self):
-        pass
+    def version(self, package):
+        log_debug('Repository', 'start to get version, uid=%s, package=%s' % (str(uid), str(package)))
+        _, ver = self._db.get_version(package)
+        return ver
     
     def start(self):
         t = Thread(target=self.run)
         t.start()
-        self.ftpserver.run()
+        self._ftpserver.run()
         t.join()
-        
-        
-def calculate_the_ftpserver_addr():
-    addr = '127.0.0.1'
-    port = 21
-    return addr, port 
 
-    
 def main():
-    repo = Repository('127.0.0.1', 9003)
+    repo = Repository('127.0.0.1', REPOSITORY_PORT)
     repo.start()
-    
-
-if __name__ == '__main__':
-    main()

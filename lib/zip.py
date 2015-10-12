@@ -17,7 +17,6 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
 import zipfile
 import os, os.path
 
@@ -57,5 +56,3 @@ def unzip_file(zipfilename, unziptodir):
             outfile.write(zfobj.read(name))
             outfile.close()
  
-if __name__ == '__main__':
-    zip_dir('/home/llf/Documents/testfiles/a0','test.zip')
