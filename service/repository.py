@@ -20,33 +20,35 @@
 import os
 import time
 from threading import Lock
+from lib.util import localhost
 from lib.db import Database
 from threading import Thread
 from lib.log import log_debug, log_err
-from conf.config import REPOSITORY_PORT
 from component.ftpclient import FTPClient
 from component.ftpserver import FTPServer
 from component.rpcserver import RPCServer
+from conf.config import REPOSITORY_PORT, REPO_DB
 
 class Repository(RPCServer):
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
         self._ftpclient = FTPClient()
         self._ftpserver = FTPServer()
-        self._db = Database(local=False)
+        self._db = Database(addr=REPO_DB)
         self._lock = Lock()
         
     def _get_addr(self, package):
-        return ('127.0.0.1', 21)
+        return (localhost(), 21)
     
     def _upload(self, package, version, buf):
         addr, port = self._get_addr(package)
+        print str(addr), str(port)
         self._ftpclient.upload(addr, port, package, version, buf)
        
     def upload(self, uid, package, version, buf):
         self._lock.acquire()
         try:
-            owner, ver = self._db.get_version(uid, package)
+            owner, ver = self._db.get_version(package)
             if owner and owner != uid:
                 log_err('Repository', 'failed to upload, invalid owner, package=%s, version=%s' % (str(package), str(version)))
                 return False
@@ -86,5 +88,5 @@ class Repository(RPCServer):
         t.join()
 
 def main():
-    repo = Repository('127.0.0.1', REPOSITORY_PORT)
+    repo = Repository(localhost(), REPOSITORY_PORT)
     repo.start()

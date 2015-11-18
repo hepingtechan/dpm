@@ -19,25 +19,21 @@
 
 import os
 import shelve
-from lib.log import log_debug, log_err
 from pymongo import MongoClient
+from lib.log import log_debug, log_err
 from conf.path import PATH_SHELVEDB
-
-MONGO_ADDR = '127.0.0.1'
-MONGO_PORT = 27017
+from conf.config import MONGO_PORT
 
 TABLE_VERSION = 'pkgversion'
 TABLE_PACKAGE = 'pkgcontent'
 
 class MongoDB(object):
-    def __init__(self, domain=None):
+    def __init__(self, addr, domain=None):
         if domain:
             self._domain = domain
         else:
             self._domain = ''
-    
-    def _get_addr(self):
-        return MONGO_ADDR
+        self._addr = addr
     
     def _get_table(self, table):
         if self._domain:
@@ -47,8 +43,7 @@ class MongoDB(object):
     
     def _get_collection(self, table):
         name = self._get_table(table)
-        addr = self._get_addr()
-        client = MongoClient(addr, MONGO_PORT)
+        client = MongoClient(self._addr , MONGO_PORT)
         return client.test[name]
 
     def has_version(self, uid, package, version, table):
@@ -86,7 +81,7 @@ class MongoDB(object):
         res = coll.find_one({'package':package})
         if res:
             log_debug('MongoDB', 'get_uid->res=%s' %  str(res))
-            return res.get('uid') 
+            return res.get('uid')
     
     def has_package(self, uid, package, version, table):
         log_debug('MongoDB', 'has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
@@ -297,11 +292,11 @@ class ShelveDB(object):
             info.close()
     
 class Database(object):
-    def __init__(self, local=True, domain=None):
-        if local:
+    def __init__(self, addr=None, domain=None):
+        if not addr:
             self._db = ShelveDB(domain)
         else:
-            self._db = MongoDB(domain)
+            self._db = MongoDB(addr, domain)
     
     def get_uid(self, package, table=TABLE_PACKAGE):
         return self._db.get_uid(package, table)

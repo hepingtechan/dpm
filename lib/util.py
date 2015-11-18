@@ -18,14 +18,21 @@
 #      MA 02110-1301, USA.
 
 import os
+import fcntl
+import struct
+import socket
+import types
 import shutil
+import hashlib
+import random
 import tempfile
 import commands
+from hash_ring import HashRing
 from conf.path import PATH_DRIVER
 from lib.zip import zip_dir, unzip_file 
 from lib.log import log_err, log_debug
-from conf.config import FRONTEND_PORT
 from component.rpcclient import RPCClient
+from conf.config import IFACE, FRONTEND_SERVERS, FRONTEND_PORT
 
 APP = 'app'
 DRIVER = 'driver'
@@ -34,19 +41,32 @@ def get_filename(package, version):
     return '%s-%s.zip' % (package, version)
 
 def _get_frontend():
-    return '127.0.0.1'
+    ring = HashRing(FRONTEND_SERVERS)
+    num = random.randint(10,15)
+    server = ring.get_node(str(num))
+    print 'util->frontend_servers is', str(server)
+    return server
+    
+def get_md5(text):
+    if type(text) is types.StringType:
+        tmp = hashlib.md5()   
+        tmp.update(text)
+        return tmp.hexdigest()
+    else:
+        log_err('util', 'failed to get md5')
 
 def login(user, password):
+    user = str(user)
+    pwd = get_md5(str(password))
     addr = _get_frontend()
     rpcclient = RPCClient(addr, FRONTEND_PORT)
-    uid, key = rpcclient.request('login', user=user, password=password)
+    uid, key = rpcclient.request('login', user=user, pwd=pwd)
     return (str(uid), str(key))
 
 def upload(path, uid, package, version, typ, key):
     zipfilename = get_filename (package, version)
     zipfilepath = os.path.join('/tmp', zipfilename)
     zip_dir(path, zipfilepath)
-    #parent_path =  os.path.dirname(path)
     with open(zipfilepath) as f:
         buf = f.read()
     os.remove(zipfilepath)
@@ -171,3 +191,8 @@ def _check_dep(path):
                     continue # if it is blank, continue. else return False above
     return True
 
+def localhost():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
+    print '@@@@@@util->loaclhost', ip
+    return ip

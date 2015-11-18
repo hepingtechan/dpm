@@ -1,4 +1,4 @@
-#      repository.py
+#      manager.py
 #      
 #      Copyright (C) 2015  Xu Tian <tianxu@iscas.ac.cn>
 #
@@ -18,40 +18,51 @@
 #      MA 02110-1301, USA.
 
 import json
+import uuid
 import socket
 import zerorpc
-from lib.util import APP
+from lib.util import localhost
+from random import randint
+from lib.stream import ANON
 from datetime import datetime
+from hash_ring import HashRing
+from lib.util import APP, get_md5
+from threading import Lock, Thread
 from pymongo import MongoClient
 from lib.log import log_debug, log_err
 from component.rpcclient import RPCClient
 from component.rpcserver import RPCServer
-from conf.config import BACKEND_PORT, MANAGER_PORT
+from conf.config import BACKEND_PORT, MANAGER_PORTS, BACKEND_SERVERS, MONGO_PORT, RECORDER_DB, SHOW_TIME
 
-MDB_ADDR = '127.0.0.1'
-MANAGER_ADDR = '127.0.0.1'
+REGIST_INFO_MAX = 1024
+LOGIN_INFO_MAX = 1024
 
-MDB_PORT = 27017
-
-PAGE_SIZE = 3
 TABLE_CAT = 'pkgcat'
 TABLE_TOP = 'pkgtop'
 TABLE_INSTALL = 'pkginst'
 TABLE_AUTHOR = 'pkgauth'
-TABLE_COUNTER = 'pkgcnt'
-TABLE_PACKAGE = 'pkginfo'
 TABLE_DESCRIPTION = 'pkgdesc'
 
 TOP = 4
 TOP_NAME = "top%d" % TOP
 
+REGISTER_INFO = ['user', 'password',  'email']
+LOGIN_INFO = ['user', 'password']
+
+if SHOW_TIME:
+    from datetime import datetime
+
 class Manger(RPCServer):
     def __init__(self, hidden=False):
+        self._lock = Lock()
         self._hidden = hidden
-        self._client =  MongoClient(MDB_ADDR, MDB_PORT)
+        self._client =  MongoClient(RECORDER_DB, MONGO_PORT)
     
     def _dump(self, buf):
         return json.dumps(buf)
+    
+    def _get_uid(self, user):
+        return uuid.uuid3(uuid.NAMESPACE_DNS, user).hex
     
     def _get_collection(self, name):
         return self._client.test[name]
@@ -59,96 +70,41 @@ class Manger(RPCServer):
     def _get_table(self, prefix, name):
         return str(prefix) + str(name)
     
-    def _get_backend(self, uid):
-        return '127.0.0.1'
-
-    def _update_counter(self, category):
-        log_debug('Manger', '_update_counter->category=%s' % str(category))
-        try:
-            coll = self._get_collection(TABLE_COUNTER)
-            res = coll.find_and_modify({'cat': category}, {'$inc':{'cnt':1}}, upsert=True)
-            log_debug('Manger', '_update_counter->res=%s' %str(res))
-            if not res:
-                return 0
-            else:
-                return res.get('cnt')
-        except:
-             log_err('Manger', 'failed to update counter')
+    def _get_user_backend(self, user):
+        ring = HashRing(BACKEND_SERVERS)
+        uid = self._get_uid(user)
+        server = ring.get_node(uid)
+        print 'manager->user_backend_servers is', str(server)
+        return server
     
-    def upload(self, uid, category, package, title, description):
-        if self._hidden:
-            return
-        log_debug('Manger', 'upload->category=%s, package=%s' % (str(category), str(package)))
-        try:
-            if not category or not package or not description:
-                log_err('Manger', 'failed to upload, invalid arguments')
-                return
-            t = str(datetime.utcnow())
-            cnt = self._update_counter(category)
-            rank = cnt / PAGE_SIZE
-            table = self._get_table(TABLE_CAT, category)
-            coll = self._get_collection(table)
-            coll.update({'rank':rank}, {'$addToSet':{'packages':{'pkg':package, 't':t}}}, upsert=True)
-            coll = self._get_collection(TABLE_DESCRIPTION)
-            coll.update({'pkg':package}, {'pkg':package,'title':title, 'des':description}, upsert=True)
-            coll = self._get_collection(TABLE_PACKAGE)
-            coll.update({'pkg':package}, {'pkg':package,'cat':category,'t':t}, upsert=True)
-            coll = self._get_collection(TABLE_AUTHOR)
-            coll.update({'uid':uid}, {'$set':{package:''}}, upsert=True)
-            return True
-        except:
-             log_err('Manger', 'failed to upload')
+    def _get_backend(self):
+        n = randint(0, len(BACKEND_SERVERS) - 1)
+        server =  BACKEND_SERVERS[n]
+        print 'manager->backend_servers is', str(server)
+        return server
     
     def install(self, uid, package, version, typ):
         log_debug('Manger', 'install->package=%s' %str(package))
-        addr = self._get_backend(uid)
+        addr = self._get_backend()
         rpcclient = RPCClient(addr, BACKEND_PORT)
         info = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
         log_debug('Manger', 'install->info=%s' %str(info))
         if not info:
-            return
-        try:
-            coll = self._get_collection(TABLE_INSTALL)
-            res = coll.find_and_modify({'pkg': package}, {'$inc':{'cnt':1}}, upsert=True)
-            if not res:
-                cnt = 1
-            else:
-                cnt = res.get('cnt')
-                if cnt != None:
-                    cnt += 1
-                if not cnt:
-                    log_err('Manger', 'failed to install, invalid counter')
-                    return
-            coll = self._get_collection(TABLE_PACKAGE)
-            res = coll.find_one({'pkg':package})
-            if not res:
-                log_err('Manger', 'failed to install, cannot get package')
-                return
-            category = res.get('cat')
-            if not category:
-                log_err('Manger', 'failed to install, cannot get category')
-                return
-            table = self._get_table(TABLE_TOP, category)
-            coll = self._get_collection(table)
-            res = coll.find_one({'name':TOP_NAME})
-            if not res or len(res) < TOP + 2:
-                coll.update({'name':TOP_NAME},  {'$set':{package:cnt}}, upsert=True)  
-            else:
-                del res['name']
-                del res['_id']
-                if package not in res:
-                    for i in res:
-                        if res[i] < cnt:
-                            coll.update({'name':TOP_NAME}, {'$unset':{i:''}})
-                            coll.update({'name':TOP_NAME},  {'$set':{package:cnt}}, upsert=True)
-                            break
-                    return True
-                else:
-                    coll.update({'name':TOP_NAME},  {'$set':{package:cnt}})
-        except:
             log_err('Manger', 'failed to install')
-        finally:
-            return info
+            return
+        print 'Manager->install success'
+        return info
+    
+    def uninstall(self, uid, package):
+        try:
+            addr = self._get_backend()
+            rpcclient = RPCClient(addr, BACKEND_PORT)
+            res = rpcclient.request('uninstall', uid=uid, package=package, typ=APP)
+            if res:
+                log_debug('Manger', 'uninstall->res=%s' %str(res))
+                return res
+        except:
+            log_err('Manger', 'failed to uninstall')
     
     def get_categories(self):
         res = {'game':'0', 'news':'1', 'video':'2', 'music':'3', 'soft':'4', 'forum':'5'}
@@ -161,7 +117,7 @@ class Manger(RPCServer):
             if res:
                 uid = res.get('uid')
                 if uid:
-                    addr = self._get_backend(uid)
+                    addr = self._get_backend()
                     rpcclient = RPCClient(addr, BACKEND_PORT)
                     name = rpcclient.request('get_name', uid=uid)
                     if name:
@@ -189,28 +145,17 @@ class Manger(RPCServer):
     
     def get_installed_packages(self, uid):
         try:
-            addr = self._get_backend(uid)
+            addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
             res = rpcclient.request('get_installed_packages', uid=uid, typ=APP)
             if res:
                 log_debug('Manger', 'get_installed_packages->res=%s' %str(res))
-                result = [] 
+                result = []
                 for i in res:
                     result.append(str(i))
                 return self._dump(result)
         except:
             log_err('Manger', 'failed to get installed packages')
-    
-    def uninstall(self, uid, package):
-        try:
-            addr = self._get_backend(uid)
-            rpcclient = RPCClient(addr, BACKEND_PORT)
-            res = rpcclient.request('uninstall', uid=uid, package=package, typ=APP)
-            if res:
-                log_debug('Manger', 'uninstall->res=%s' %str(res))
-                return res
-        except:
-            log_err('Manger', 'failed to uninstall')
     
     def get_descripton(self, package):
         try:
@@ -258,7 +203,7 @@ class Manger(RPCServer):
         res = []
         for i in info:
             pkg = i.keys()[0]
-            cnt, auth, title = self._get_package_detail(pkg)
+            cnt, auth, title = self.get_package_detail(pkg)
             item = {'pkg':pkg, 'title':title, 'auth':auth, 'cnt':cnt}
             res.append(item)
         if res:
@@ -269,17 +214,15 @@ class Manger(RPCServer):
         info = self._get_packages(category, rank)
         res = []
         for i in info:
-            cnt, auth, title = self._get_package_detail(i)
+            cnt, auth, title = self.get_package_detail(i)
             item = {'pkg':i, 'title':title, 'auth':auth, 'cnt':cnt}
             res.append(item)
         if res:
             return self._dump(res)
     
-    def _get_package_detail(self, package, check_inst=True):
+    def get_package_detail(self, package):
         try:
-            cnt = None
-            if check_inst:
-                cnt = self.get_inst(package)
+            cnt = self.get_inst(package)
             if not cnt:
                 cnt = str(0)
             auth = self.get_author(package)
@@ -296,14 +239,96 @@ class Manger(RPCServer):
     
     def has_package(self, uid, package):
         log_debug('Manger', 'has_package->package=%s' % str(package))
-        addr = self._get_backend(uid)
+        addr = self._get_backend()
         rpcclient = RPCClient(addr, BACKEND_PORT)
         res = rpcclient.request('has_package', uid=uid, package=package, typ=APP)
         if res:
             return True
         return False
     
+    def register(self, info):
+        self._lock.acquire()
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            #log_debug('Manger', 'register starts')
+            if len(info) > REGIST_INFO_MAX:
+                log_err('Manger', 'failed register, invalid register information')
+                return
+            res = json.loads(info)
+            #print '1-1 Manger->register',res
+            if type(res) != dict or len(res) > len(REGISTER_INFO):
+                log_err('Manger', 'failed register, invalid register user, password and email')
+                return
+            
+            for i in res:
+                if i not in REGISTER_INFO:
+                    log_err('Manager', 'invalid register info')
+                    return
+            
+            user = res.get('user').encode('utf-8')
+            password = res.get('password').encode('utf-8')
+            email = res.get('email').encode('utf-8')
+            #print '1-2 Manger->register-->user=%s' % str(user)
+            #print '1-2 Manger->register', user, password, email
+            if len(password) > 16:
+                log_err('Manger', 'failed to register, invalid register password length')
+                return
+            pwd = get_md5(password)
+            addr = self._get_user_backend(user)
+            rpcclient = RPCClient(addr, BACKEND_PORT)
+            res = rpcclient.request('register', user=user, pwd=pwd, email=email)
+            if SHOW_TIME:
+                log_debug('Manger', 'register , time=%d sec' % (datetime.utcnow() - start_time).seconds)
+            if res:
+                return str(True)
+            else:
+                return str(False)
+        finally:
+            self._lock.release()
+    
+    def login(self, info):
+        log_debug('Manger', 'login starts')
+        if len(info) > LOGIN_INFO_MAX:
+            log_err('Manager', 'failed login, invalid login information')
+            return
+        res = json.loads(info)
+        if type(res) != dict or len(res) > len(LOGIN_INFO):
+            log_err('Manger', 'failed login, invalid login user, password')
+            return
+        for i in res:
+            if i not in LOGIN_INFO:
+                log_err('Manager', 'invalid login info')
+                return
+        user = res.get('user').encode('utf-8')
+        password = res.get('password').encode('utf-8')
+        pwd = get_md5(password)
+        addr = self._get_user_backend(user)
+        rpcclient = RPCClient(addr, BACKEND_PORT)
+        uid, key = rpcclient.request('login', user=user, pwd=pwd)
+        if uid and key:
+            print '@@, Manager->login', uid, type(uid)
+            print '##, Manager->login', key, type(key)
+            return uid
+        return 'login failed'
+
+class ManagerServer(Thread):
+    def __init__(self, port):
+        Thread.__init__(self)
+        self.port = port
+    
+    def run(self):
+        s = zerorpc.Server(Manger())
+        s.bind("tcp://%s:%d" % (localhost(), self.port))
+        s.run()
+
 def main():
-    s = zerorpc.Server(Manger())
-    s.bind("tcp://%s:%d" % (MANAGER_ADDR, MANAGER_PORT))
-    s.run()
+    threads = []
+    for i in MANAGER_PORTS:
+        t = ManagerServer(i)
+        threads.append(t)
+        t.start()
+        
+    for t in threads:
+        t.join()
+

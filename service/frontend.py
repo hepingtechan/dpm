@@ -19,17 +19,18 @@
 
 import struct
 import socket
+from lib.util import localhost
+from random import randint
 from lib.stream import Stream
 from lib.log import log_err, log_debug
 from lib.stream import UID_LEN, HEAD_LEN
-from conf.config import FRONTEND_PORT, BACKEND_PORT
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
-
-FRONT_ADDR = '127.0.0.1'
+from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS
 
 class FrontendHandler(BaseRequestHandler):
     def _get_backend(self, uid):
-        return '127.0.0.1'
+        n = randint(0, len(BACKEND_SERVERS) - 1)
+        return BACKEND_SERVERS[n]
     
     def _forward(self, uid, src, dest):
         log_debug('FrontendHandler', 'start to forward, uid=%s' % str(uid))
@@ -78,6 +79,8 @@ class FrontendHandler(BaseRequestHandler):
             self._forward(uid, self.request, sock)
             stream = Stream(sock)
             _, _, res = stream.readall()
+            print '222-11', res
+            print '222', str(res)
             stream = Stream(self.request)
             stream.write(res)
         finally:
@@ -93,4 +96,4 @@ class Frontend(object):
 
 def main():
     frontend = Frontend()
-    frontend.run(FRONT_ADDR, FRONTEND_PORT)
+    frontend.run(localhost(), FRONTEND_PORT)

@@ -18,8 +18,8 @@
 #      MA 02110-1301, USA.
 
 import sys
+import resource
 import argparse
-from service import frontend, backend, repository, manager, installer
 
 def create_server(): 
     parser = argparse.ArgumentParser()
@@ -27,18 +27,33 @@ def create_server():
     parser.add_argument('-b', '--backend', action='store_true')
     parser.add_argument('-m', '--manager', action='store_true')
     parser.add_argument('-r',  '--repository', action='store_true')
+    parser.add_argument('-a',  '--allocator', action='store_true')
     parser.add_argument('-i',  '--installer', action='store_true')
+    parser.add_argument('-d',  '--recorder', action='store_true')
     args = parser.parse_args(sys.argv[1:])
     if args.frontend:
+        from service import frontend
         frontend.main()
     elif args.backend:
+        from service import backend
         backend.main()
     elif args.manager:
+        from service import manager
         manager.main()
     elif args.repository:
+        from service import repository
         repository.main()
     elif args.installer:
+        from service import installer
         installer.main()
+    elif args.allocator:
+        from service import allocator
+        allocator.main()
+    elif args.recorder:
+        from service import recorder
+        recorder.main()
 
 if __name__ == '__main__':
+    max_open_files_soft, max_open_files_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, max_open_files_hard))
     create_server()

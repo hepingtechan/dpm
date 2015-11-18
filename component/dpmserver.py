@@ -21,13 +21,20 @@ import rsa
 import struct
 import socket
 import threading
-from lib.log import log_err
 from lib.stream import Stream
+from conf.config import SHOW_TIME
+from lib.log import log_err, log_debug
 from lib.stream import UID_LEN, FLG_LEN, FLG_SEC
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 
+if SHOW_TIME:
+    from datetime import datetime
+
 class DPMRequestHandler(BaseRequestHandler):
     def handle(self):
+        if SHOW_TIME:
+            start_time = datetime.utcnow()
+        #log_debug('DPMRequestHandler', 'handle->start' )
         uid = self.request.recv(UID_LEN)
         if len(uid) != UID_LEN:
             log_err('DPMRequestHandler', 'failed to handle, invalid head')
@@ -38,6 +45,9 @@ class DPMRequestHandler(BaseRequestHandler):
             return
         flg, = struct.unpack('I', buf)
         if flg == FLG_SEC:
+            if not self.server.rpcserver.user:
+                log_err('DPMRequestHandler', 'user is not initialized')
+                raise Exception('user is not initialized')
             key = self.server.rpcserver.user.get_private_key(uid)
             if not key:
                 log_err('DPMRequestHandler', 'failed to handle, invalid private key')
@@ -53,6 +63,8 @@ class DPMRequestHandler(BaseRequestHandler):
                 if flg == FLG_SEC:
                     stream = Stream(self.request)
                 stream.write(res)
+        if SHOW_TIME:
+            log_debug('DPMRequestHandler', 'handle, time=%d sec' % (datetime.utcnow() - start_time).seconds)
 
 class DPMTCPServer(ThreadingMixIn, TCPServer):
     def set_server(self, rpcserver):

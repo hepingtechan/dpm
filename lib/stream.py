@@ -96,6 +96,7 @@ class Stream(object):
     
     def readall(self):
         uid = self._sock.recv(UID_LEN)
+        #print '333', str(uid)
         if len(uid) != UID_LEN:
             log_err('Stream.readall',  'failed to receive uid, invalid head')
             return
@@ -105,4 +106,5 @@ class Stream(object):
             return
         flg = struct.unpack('I', buf)[0]
         buf = self.read()
+        #print '333-11', str(buf)
         return (uid, flg, buf)

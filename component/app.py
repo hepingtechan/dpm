@@ -27,17 +27,22 @@ from threading import Lock
 from lib.db import Database
 from lib.zip import unzip_file
 from rpcclient import RPCClient
+from hash_ring import HashRing
 from lib.log import log_debug, log_err
 from conf.path import PATH_VDTOOLS
-from conf.config import REPOSITORY_PORT
+from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
 
 class App():
     def __init__(self):
         self._lock = Lock()
-        self._db = Database(domain=APP, local=False)
+        self._db = Database(addr=APP_DB, domain=APP)
     
     def _get_repo(self, package):
-        return '127.0.0.1'
+        ring = HashRing(REPOSITORY_SERVERS)
+        server = ring.get_node(package)
+        print 'App->repository_server is', str(server)
+        return server
+        #return '192.168.10.13'
     
     def _install(self, buf):
         dirname = tempfile.mkdtemp()
@@ -49,6 +54,7 @@ class App():
             unzip_file(src, dest)
             cmd = 'python %s %s' % (PATH_VDTOOLS, dest)
             status, output = commands.getstatusoutput(cmd)
+            log_debug('App',  '_installing, status=%s, output=%s' % (str(status), str(output)))
             if status ==  0:
                 return output
         finally:
@@ -65,6 +71,7 @@ class App():
                 rpcclient = RPCClient(addr, REPOSITORY_PORT)
                 if not version:
                     version = rpcclient.request('version', package=package)
+                    print 'App->install', str(version)
                     if not version:
                         log_err('App', 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
                         return

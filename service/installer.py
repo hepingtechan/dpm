@@ -1,4 +1,4 @@
-#      backend.py
+#      installer.py
 #      
 #      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>,  Xu Tian <tianxu@iscas.ac.cn>
 #      
@@ -18,14 +18,12 @@
 #      MA 02110-1301, USA.
 
 from threading import Thread
-from lib.util import APP, DRIVER
 from component.app import App
 from component.driver import Driver
 from lib.log import log_debug, log_err
 from conf.config import INSTALLER_PORT
 from component.rpcserver import RPCServer
-
-INSTALLER_ADDR = '127.0.0.1'
+from lib.util import APP, DRIVER, localhost
 
 class Installer(RPCServer):
     def __init__(self, addr, port):
@@ -61,5 +59,5 @@ class Installer(RPCServer):
         t.join()
 
 def main():
-    repo = Installer(INSTALLER_ADDR, INSTALLER_PORT)
-    repo.start()
+    inst = Installer(localhost(), INSTALLER_PORT)
+    inst.start()

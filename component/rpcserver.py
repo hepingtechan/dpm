@@ -24,11 +24,11 @@ from dpmserver import DPMServer
 from lib.log import log_debug, log_err
 
 class RPCServer(object):   
-    def __init__(self, addr, port):
+    def __init__(self, addr, port, user=None):
+        self.dpmserver = DPMServer()
         self.addr = addr
         self.port = port
-        self.user = User()
-        self.dpmserver = DPMServer()
+        self.user = user
     
     def run(self):
         self.dpmserver.run(self)
@@ -45,7 +45,7 @@ class RPCServer(object):
     def proc(self, buf):
         try:
             op, args, kwargs = unpack(buf)
-            log_debug('RPCServer', 'proc, op=%s' % str(op))
+            #log_debug('RPCServer', 'proc, op=%s' % str(op))
             return self.__proc(op, args, kwargs)
         finally:
             pass
