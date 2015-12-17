@@ -30,6 +30,8 @@ from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 if SHOW_TIME:
     from datetime import datetime
 
+CACHE_MAX = 4096
+
 class DPMRequestHandler(BaseRequestHandler):
     def handle(self):
         if SHOW_TIME:
@@ -48,28 +50,39 @@ class DPMRequestHandler(BaseRequestHandler):
             if not self.server.rpcserver.user:
                 log_err('DPMRequestHandler', 'user is not initialized')
                 raise Exception('user is not initialized')
-            key = self.server.rpcserver.user.get_private_key(uid)
+            key = self.server.cache_get(uid)
             if not key:
-                log_err('DPMRequestHandler', 'failed to handle, invalid private key')
-                return
-            key = rsa.PrivateKey.load_pkcs1(key)
+                key = self.server.rpcserver.user.get_private_key(uid)
+                if not key:
+                    log_err('DPMRequestHandler', 'failed to handle, invalid private key')
+                    return
+                key = rsa.PrivateKey.load_pkcs1(key)
+                self.server.cache_update(uid, key)
             stream = Stream(self.request, uid=uid, key=key)
         else:
             stream = Stream(self.request)
         buf = stream.read()
         if buf:
             res = self.server.rpcserver.proc(buf)
-            if res:
-                if flg == FLG_SEC:
-                    stream = Stream(self.request)
-                stream.write(res)
+            if flg == FLG_SEC:
+                stream = Stream(self.request)
+            stream.write(res)
         if SHOW_TIME:
             log_debug('DPMRequestHandler', 'handle, time=%d sec' % (datetime.utcnow() - start_time).seconds)
 
 class DPMTCPServer(ThreadingMixIn, TCPServer):
     def set_server(self, rpcserver):
+        self._cache = {}
         self.rpcserver = rpcserver
-
+    
+    def cache_get(self, uid):
+        return self._cache.get(uid)
+    
+    def cache_update(self, uid, key):
+        if len(self._cache) >= CACHE_MAX:
+            self._cache.popitem()
+        self._cache.update({uid:key})
+    
 class DPMServer(object):
     def run(self, rpcserver):
         self.server = DPMTCPServer((rpcserver.addr, rpcserver.port), DPMRequestHandler)

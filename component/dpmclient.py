@@ -26,7 +26,9 @@ class DPMClient():
     def __init__(self, uid=None, key=None):
         self._lock = Lock()
         self._uid = uid
-        self._key = key
+        self._key = None
+        if key:
+            self._key = rsa.PublicKey.load_pkcs1(key)
       
     def request(self, addr, port, buf):
         self._lock.acquire()
@@ -40,8 +42,7 @@ class DPMClient():
         sock.connect((addr, port))
         try:
             if self._key:
-                key = rsa.PublicKey.load_pkcs1(self._key) 
-                stream = Stream(sock, uid=self._uid, key=key)
+                stream = Stream(sock, uid=self._uid, key=self._key)
             else:
                 stream = Stream(sock)
             stream.write( buf)

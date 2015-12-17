@@ -17,228 +17,204 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-import json
 import uuid
-import socket
+import json
 import zerorpc
 from lib.util import localhost
 from random import randint
 from lib.stream import ANON
 from datetime import datetime
 from hash_ring import HashRing
-from lib.util import APP, get_md5
 from threading import Lock, Thread
-from pymongo import MongoClient
 from lib.log import log_debug, log_err
+from recorder import RecorderServer
+from lib.util import APP, get_md5, get_uid
 from component.rpcclient import RPCClient
-from component.rpcserver import RPCServer
-from conf.config import BACKEND_PORT, MANAGER_PORTS, BACKEND_SERVERS, MONGO_PORT, RECORDER_DB, SHOW_TIME
+from conf.config import BACKEND_PORT, BACKEND_SERVERS, MANAGER_PORTS, SHOW_TIME, DEBUG, MANAGER_WEBSOCKET
 
-REGIST_INFO_MAX = 1024
-LOGIN_INFO_MAX = 1024
-
-TABLE_CAT = 'pkgcat'
-TABLE_TOP = 'pkgtop'
-TABLE_INSTALL = 'pkginst'
-TABLE_AUTHOR = 'pkgauth'
-TABLE_DESCRIPTION = 'pkgdesc'
+if MANAGER_WEBSOCKET:
+    import tornado.ioloop
+    import tornado.web
+    import tornado.websocket
+    import tornado.template
+    from websocket import create_connection
 
 TOP = 4
 TOP_NAME = "top%d" % TOP
-
-REGISTER_INFO = ['user', 'password',  'email']
-LOGIN_INFO = ['user', 'password']
+INPUT_MAX = 1024
 
 if SHOW_TIME:
     from datetime import datetime
 
-class Manger(RPCServer):
-    def __init__(self, hidden=False):
+class Manager(object):
+    def __init__(self):
         self._lock = Lock()
-        self._hidden = hidden
-        self._client =  MongoClient(RECORDER_DB, MONGO_PORT)
-    
-    def _dump(self, buf):
-        return json.dumps(buf)
-    
-    def _get_uid(self, user):
-        return uuid.uuid3(uuid.NAMESPACE_DNS, user).hex
-    
-    def _get_collection(self, name):
-        return self._client.test[name]
-    
-    def _get_table(self, prefix, name):
-        return str(prefix) + str(name)
+        self._recorder = RecorderServer()
+        if DEBUG:
+            self._register_cnt = 0
+            self._install_cnt = 0
     
     def _get_user_backend(self, user):
         ring = HashRing(BACKEND_SERVERS)
-        uid = self._get_uid(user)
+        uid = get_uid(user)
         server = ring.get_node(uid)
-        print 'manager->user_backend_servers is', str(server)
         return server
     
     def _get_backend(self):
         n = randint(0, len(BACKEND_SERVERS) - 1)
         server =  BACKEND_SERVERS[n]
-        print 'manager->backend_servers is', str(server)
         return server
     
     def install(self, uid, package, version, typ):
-        log_debug('Manger', 'install->package=%s' %str(package))
-        addr = self._get_backend()
-        rpcclient = RPCClient(addr, BACKEND_PORT)
-        info = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
-        log_debug('Manger', 'install->info=%s' %str(info))
-        if not info:
-            log_err('Manger', 'failed to install')
-            return
-        print 'Manager->install success'
-        return info
+        log_debug('Manager', 'install->package=%s' %str(package))
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            addr = self._get_backend()
+            rpcclient = RPCClient(addr, BACKEND_PORT)
+            info = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
+            if not info:
+                log_err('Manager', 'failed to install, invalid return info')
+                return
+            if SHOW_TIME:
+                log_debug('Manager', 'install , time=%d sec' % (datetime.utcnow() - start_time).seconds)
+            if DEBUG:
+                self._install_cnt += 1
+                log_debug('Manger', 'install, count=%d' % self._install_cnt)
+            return info
+        except:
+            log_err('Manager', 'failed to install')
     
     def uninstall(self, uid, package):
         try:
             addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
             res = rpcclient.request('uninstall', uid=uid, package=package, typ=APP)
-            if res:
-                log_debug('Manger', 'uninstall->res=%s' %str(res))
-                return res
+            if not res:
+                log_err('Manager', 'failed to uninstall, invalid return res')
+                return
+            return res
         except:
-            log_err('Manger', 'failed to uninstall')
+            log_err('Manager', 'failed to uninstall')
     
     def get_categories(self):
-        res = {'game':'0', 'news':'1', 'video':'2', 'music':'3', 'soft':'4', 'forum':'5'}
-        return self._dump(res)
-    
-    def get_author(self, package):
-        try:
-            coll = self._get_collection(TABLE_AUTHOR)
-            res = coll.find_one({package:''})
-            if res:
-                uid = res.get('uid')
-                if uid:
-                    addr = self._get_backend()
-                    rpcclient = RPCClient(addr, BACKEND_PORT)
-                    name = rpcclient.request('get_name', uid=uid)
-                    if name:
-                        return str(name)
-        except:
-             log_err('Manger', 'failed to get author')
-    
-    def _get_packages(self, category, rank):
-        result = []
-        table = self._get_table(TABLE_CAT, category)
-        coll = self._get_collection(table)
-        res = coll.find_one({'rank':rank})
-        if res.has_key('packages'): 
-            for item in res['packages']:
-                result.append(str(item['pkg']))
-        return result
+        return self._recorder.get_categories()
     
     def get_packages(self, category, rank):
+        log_debug('Manager', 'get_packages starts' )
         try:
-            result = self._get_packages(category, rank)
-            if result:
-                return self._dump(result)
+            ret = self._recorder.get_packages(category, rank)
+            if ret:
+                return ret
         except:
-            log_err('Manger', 'failed to get packages')
+            log_err('Manager', 'failed to get packages')
+       
+    def get_descripton(self, package):
+        log_debug('Manager', 'get_descripton starts' )
+        try:
+            ret = self._recorder.get_description(package)
+            if ret:
+                return ret
+        except:
+             log_err('Manager', 'get_descripton failed')
+    
+    def get_inst(self, package):
+        log_debug('Manager', 'get_inst starts, package=%s' %str(package))
+        try:
+            return self._recorder.get_inst(package)
+        except:
+             log_err('Manager', 'get_inst failed')
+    
+    def get_top(self, category):
+        log_debug('Manager', 'get_top starts, category=%s' %str(category))
+        try:
+            ret = self._recorder.get_top(category)
+            if ret:
+                return ret
+        except:
+             log_err('Manager', 'get_top failed')
+    
+    def get_top_details(self, category):
+        log_debug('Manger', 'get_top_details starts')
+        try:
+            ret = self._recorder.get_top_details(category)
+            if ret:
+                for i in ret:
+                    pkg = i.get('pkg')
+                    if not pkg:
+                        log_err('Manager', 'get_top_details failed, invalid package')
+                        return
+                    auth = self.get_author(pkg)
+                    i.update({'auth':auth})
+                return ret
+        except:
+             log_err('Manager', 'get_top_details failed')
+    
+    def get_package_detail(self, package):
+        log_debug('Manager', 'get_package_detail starts')
+        try:
+            cnt, title = self._recorder.get_package_detail(package)
+            auth = self.get_author(package)
+            if not auth:
+                log_err('Manager', 'get_package_detail failed, no author')
+                return
+            return {'cnt':cnt, 'auth':auth, 'title':title}
+        except:
+            log_err('Manager', 'get_package_detail failed')
+    
+    def get_packages_details(self, category, rank):
+        log_debug('Manager', 'get_packages_details starts')
+        try:
+            ret = self._recorder.get_packages_details(category, rank)
+            if ret:
+                for i in ret:
+                    pkg = i.get('pkg')
+                    if not pkg:
+                        log_err('Manager', 'get_packages_details failed, invalid package')
+                        return
+                    auth = self.get_author(pkg)
+                    i.update({'auth':auth})
+                return ret
+        except:
+             log_err('Manager', 'get_packages_details failed')
+            
+    def get_counter(self, category):
+        log_debug('Manager', 'get_counter->category=%s' % str(category))
+        try:
+            return self._recorder.get_counter(category)
+        except:
+            log_err('Manager', 'get_counter failed')
+    
+    def get_author(self, package):
+        log_debug('Manager', 'get_author starts, package=%s' % str(package))
+        try:
+            uid = self._recorder.get_uid(package)
+            if uid:
+                addr = self._get_backend()
+                rpcclient = RPCClient(addr, BACKEND_PORT)
+                name = rpcclient.request('get_name', uid=uid)
+                if name:
+                    return str(name)
+        except:
+             log_err('Manager', 'get_author failed')
     
     def get_installed_packages(self, uid):
+        log_debug('Manager', 'get_installed_packages starts')
         try:
             addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
             res = rpcclient.request('get_installed_packages', uid=uid, typ=APP)
             if res:
-                log_debug('Manger', 'get_installed_packages->res=%s' %str(res))
+                log_debug('Manager', 'get_installed_packages->res=%s' %str(res))
                 result = []
                 for i in res:
                     result.append(str(i))
-                return self._dump(result)
+                return result
         except:
-            log_err('Manger', 'failed to get installed packages')
-    
-    def get_descripton(self, package):
-        try:
-            coll = self._get_collection(TABLE_DESCRIPTION)
-            res = coll.find_one({'pkg':package})
-            if res:
-                return (str(res['title']), str(res['des']))
-        except:
-             log_err('Manger', 'failed to get description')
-    
-    def get_inst(self, package):
-        log_debug('Manger', 'get_inst->package=%s' %str(package))
-        try:
-            coll = self._get_collection(TABLE_INSTALL)
-            res = coll.find_one({'pkg':package})
-            if res:
-                return str(res['cnt'])
-        except:
-             log_err('Manger', 'failed to get install num')
-    
-    def _get_top(self, category):
-        result = []
-        table = self._get_table(TABLE_TOP, category)
-        coll = self._get_collection(table)
-        res = coll.find_one({'name':TOP_NAME})
-        if res:
-            del res['name']
-            del res['_id']
-            for i in res:
-                result.append({str(i):str(res[i])})
-        return result
-    
-    def get_top(self, category):
-        log_debug('Manger', 'get_top->category=%s' %str(category))
-        try:
-            result = self._get_top(category)
-            if result:
-                return self._dump(result)
-        except:
-             log_err('Manger', 'failed to get top')
-    
-    def get_top_details(self, category):
-        log_debug('Manger', 'get_top_details starts')
-        info = self._get_top(category)
-        res = []
-        for i in info:
-            pkg = i.keys()[0]
-            cnt, auth, title = self.get_package_detail(pkg)
-            item = {'pkg':pkg, 'title':title, 'auth':auth, 'cnt':cnt}
-            res.append(item)
-        if res:
-            return self._dump(res)
-    
-    def get_packages_details(self, category, rank):
-        log_debug('Manger', 'get_packages_details starts')
-        info = self._get_packages(category, rank)
-        res = []
-        for i in info:
-            cnt, auth, title = self.get_package_detail(i)
-            item = {'pkg':i, 'title':title, 'auth':auth, 'cnt':cnt}
-            res.append(item)
-        if res:
-            return self._dump(res)
-    
-    def get_package_detail(self, package):
-        try:
-            cnt = self.get_inst(package)
-            if not cnt:
-                cnt = str(0)
-            auth = self.get_author(package)
-            if not auth:
-                log_err('Manger', 'get_package_detail-> failed to get author')
-                return
-            title, _ = self.get_descripton(package)
-            if not title:
-                log_err('Manger', 'get_package_detail-> failed to get title')
-                return
-            return (cnt, auth, title)
-        except:
-            log_err('Manger', 'failed to get_package_detail')
+            log_err('Manager', 'failed to get installed packages')
     
     def has_package(self, uid, package):
-        log_debug('Manger', 'has_package->package=%s' % str(package))
+        log_debug('Manager', 'has_package starts , package=%s' % str(package))
         addr = self._get_backend()
         rpcclient = RPCClient(addr, BACKEND_PORT)
         res = rpcclient.request('has_package', uid=uid, package=package, typ=APP)
@@ -246,81 +222,156 @@ class Manger(RPCServer):
             return True
         return False
     
-    def register(self, info):
+    def register(self, user, password, email):
+        log_debug('Manager', 'register starts')
         self._lock.acquire()
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
-            #log_debug('Manger', 'register starts')
-            if len(info) > REGIST_INFO_MAX:
-                log_err('Manger', 'failed register, invalid register information')
-                return
-            res = json.loads(info)
-            #print '1-1 Manger->register',res
-            if type(res) != dict or len(res) > len(REGISTER_INFO):
-                log_err('Manger', 'failed register, invalid register user, password and email')
-                return
-            
-            for i in res:
-                if i not in REGISTER_INFO:
-                    log_err('Manager', 'invalid register info')
-                    return
-            
-            user = res.get('user').encode('utf-8')
-            password = res.get('password').encode('utf-8')
-            email = res.get('email').encode('utf-8')
-            #print '1-2 Manger->register-->user=%s' % str(user)
-            #print '1-2 Manger->register', user, password, email
-            if len(password) > 16:
-                log_err('Manger', 'failed to register, invalid register password length')
-                return
             pwd = get_md5(password)
             addr = self._get_user_backend(user)
             rpcclient = RPCClient(addr, BACKEND_PORT)
             res = rpcclient.request('register', user=user, pwd=pwd, email=email)
             if SHOW_TIME:
-                log_debug('Manger', 'register , time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                log_debug('Manager', 'register , time=%d sec' % (datetime.utcnow() - start_time).seconds)
             if res:
-                return str(True)
+                if DEBUG:
+                    self._register_cnt += 1
+                    log_debug('Manger', 'register, count=%d' % self._register_cnt)
+                return True
             else:
-                return str(False)
+                return False
         finally:
             self._lock.release()
     
-    def login(self, info):
-        log_debug('Manger', 'login starts')
-        if len(info) > LOGIN_INFO_MAX:
-            log_err('Manager', 'failed login, invalid login information')
-            return
-        res = json.loads(info)
-        if type(res) != dict or len(res) > len(LOGIN_INFO):
-            log_err('Manger', 'failed login, invalid login user, password')
-            return
-        for i in res:
-            if i not in LOGIN_INFO:
-                log_err('Manager', 'invalid login info')
-                return
-        user = res.get('user').encode('utf-8')
-        password = res.get('password').encode('utf-8')
-        pwd = get_md5(password)
-        addr = self._get_user_backend(user)
-        rpcclient = RPCClient(addr, BACKEND_PORT)
-        uid, key = rpcclient.request('login', user=user, pwd=pwd)
-        if uid and key:
-            print '@@, Manager->login', uid, type(uid)
-            print '##, Manager->login', key, type(key)
-            return uid
-        return 'login failed'
+    def login(self, user, password):
+        log_debug('Manager', 'login starts')
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            pwd = get_md5(password)
+            addr = self._get_user_backend(user)
+            rpcclient = RPCClient(addr, BACKEND_PORT)
+            uid, key = rpcclient.request('login', user=user, pwd=pwd)
+            if SHOW_TIME:
+                log_debug('Manager', 'login , time=%d sec' % (datetime.utcnow() - start_time).seconds)
+            if uid and key:
+                if DEBUG:
+                    self._register_cnt += 1
+                    log_debug('Manager', 'login, count=%d' % self._register_cnt)
+                return (uid, key)
+        except:
+            log_err('Manager', 'failed to login')
 
+if MANAGER_WEBSOCKET:
+    manager = Manager()
+
+class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
+    def on_message(self, message):
+        if len(message) > INPUT_MAX:
+            log_err('ManagerWSHandler', 'invalid message' )
+            return
+        ret = ''
+        info = json.loads(message)
+        if not info or type(info) != dict or len(info) < 2:
+            log_err('ManagerWSHandler', 'invalid message' )
+            return
+        op = info.get('operator')
+        if not op:
+            log_err('ManagerWSHandler', 'invalid handler')
+        try:
+            if op == 'register':
+                user = info['user']
+                password = info['password']
+                email = info['email']
+                if len(password) > 16:
+                    log_err('ManagerWSHandler', 'failed to register, invalid register password length')
+                else:
+                    ret = manager.register(user, password, email)
+            
+            elif op == 'login':
+                user = info['user']
+                password = info['password']
+                ret = manager.login(user, password)
+            
+            elif op == 'install':
+                uid = info['uid']
+                pkg = info['package']
+                ver = info['version']
+                typ = info['typ']
+                ret = manager.install(uid, pkg, ver, typ)
+            
+            elif op == 'uninstall':
+                uid = info['uid']
+                pkg = info['package']
+                manager.uninstall(uid, pkg)
+            
+            elif op == 'get_categories':
+                ret = manager.get_categories()
+            
+            elif op == 'get_packages':
+                cat = info['category']
+                rank = info['rank']
+                ret = manager.get_packages(cat, rank)
+            
+            elif op == 'get_description':
+                pkg = info['package']
+                ret = manager.get_description(pkg)
+            
+            elif op == 'get_inst':
+                pkg = info['package']
+                ret = manager.get_inst(pkg)
+            
+            elif op == 'get_top':
+                cat = info['category']
+                ret = manager.get_top(cat)
+            
+            elif op == 'get_top_details':
+                cat = info['category']
+                ret = manager.get_top_details(cat)
+            
+            elif op == 'get_package_detail':
+                pkg = info['package']
+                ret = manager.get_package_detail(pkg)
+            
+            elif op == 'get_packages_details':
+                cat = info['category']
+                rank = info['rank']
+                ret = manager.get_packages_details(cat, rank)
+            
+            elif op == 'get_counter':
+                cat = info['category']
+                ret = manager.get_counter(cat)
+            
+            elif op == 'get_author':
+                pkg = info['package']
+                ret = manager.get_author(pkg)
+            
+            elif op == 'get_installed_packages':
+                uid = info['uid']
+                ret = manager.get_installed_packages(uid)
+            
+            elif op == 'has_package':
+                uid = info['uid']
+                pkg = info['package']
+                ret = manager.has_package(uid, pkg)
+        finally: 
+            self.write_message(json.dumps(ret))
+    
 class ManagerServer(Thread):
     def __init__(self, port):
         Thread.__init__(self)
         self.port = port
     
     def run(self):
-        s = zerorpc.Server(Manger())
-        s.bind("tcp://%s:%d" % (localhost(), self.port))
-        s.run()
+        if MANAGER_WEBSOCKET:
+            application = tornado.web.Application([(r'/', ManagerWSHandler)])
+            application.listen(self.port)
+            tornado.ioloop.IOLoop.instance().start()
+        else:
+            s = zerorpc.Server(Manager())
+            s.bind("tcp://%s:%d" % (localhost(), self.port))
+            s.run()
 
 def main():
     threads = []
@@ -331,4 +382,3 @@ def main():
         
     for t in threads:
         t.join()
-

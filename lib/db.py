@@ -47,7 +47,7 @@ class MongoDB(object):
         return client.test[name]
 
     def has_version(self, uid, package, version, table):
-        log_debug('MongoDB', 'has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #log_debug('MongoDB', 'has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         if not version:
             return
         coll = self._get_collection(table)
@@ -56,16 +56,16 @@ class MongoDB(object):
             return True
     
     def get_version(self, package, table):
-        log_debug('MongoDB', 'get_version->package=%s' % str(package))
+        #log_debug('MongoDB', 'get_version->package=%s' % str(package))
         coll = self._get_collection(table)
         res = coll.find_one({'package': package})
         if res:
-            log_debug('MongoDB', 'get_version->version=%s' % str(res.get('version')))
+            #log_debug('MongoDB', 'get_version->version=%s' % str(res.get('version')))
             return (res.get('uid'), res.get('version'))
         return (None, None)
     
     def set_version(self, uid, package, version, table):
-        log_debug('MongoDB', 'set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #log_debug('MongoDB', 'set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
         res = coll.find_one({'package': package})
         if res:
@@ -75,16 +75,16 @@ class MongoDB(object):
             coll.save({'uid':uid, 'package':package, 'version':version})
 
     def get_uid(self, package, table):
-        log_debug('MongoDB', 'get_uid->package=%s' %  str(package))
+        #log_debug('MongoDB', 'get_uid->package=%s' %  str(package))
         name = self._get_table(table)
         coll = self._get_collection(name)
         res = coll.find_one({'package':package})
         if res:
-            log_debug('MongoDB', 'get_uid->res=%s' %  str(res))
+            #log_debug('MongoDB', 'get_uid->res=%s' %  str(res))
             return res.get('uid')
     
     def has_package(self, uid, package, version, table):
-        log_debug('MongoDB', 'has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
+        #log_debug('MongoDB', 'has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
         coll = self._get_collection(table)
         res = coll.find_one({'uid': uid})
         if res and res.has_key('package'):
@@ -93,13 +93,13 @@ class MongoDB(object):
                     versions = res['package'][package]
                     for i in versions:
                         if i['version'] == version:
-                            log_debug('MongoDB', 'has_package->i[version]=%s' % (str(i['version'])))
+                            #log_debug('MongoDB', 'has_package->i[version]=%s' % (str(i['version'])))
                             return True
                 else:
                     return True
     
     def get_package(self, uid, package, version, table):
-        log_debug('MongoDB', 'get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #log_debug('MongoDB', 'get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
         res = coll.find_one({'uid': uid})
         if res and res.has_key('package'):
@@ -119,7 +119,7 @@ class MongoDB(object):
                     return (item['version'], item['output'])
     
     def set_package(self, uid, package, version, output, table):
-        log_debug('MongoDB', 'set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #log_debug('MongoDB', 'set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
         res = coll.find_one({'uid': uid})
         if res and res.has_key('package') and  res['package'].has_key(package):
@@ -134,10 +134,10 @@ class MongoDB(object):
                 coll.save({'uid':uid, 'package':{package: [{'version':version, 'output':output}]}})
             else:
                 coll.update({'uid':uid}, {'$set': {'package.%s' % package:[{'version':version, 'output':output}]}})
-        log_debug('MongoDB', 'set_package->res=%s' % str(res))
+        #log_debug('MongoDB', 'set_package->res=%s' % str(res))
     
     def rm_package(self, uid, package, version, table):
-        log_debug('MongoDB', 'rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #log_debug('MongoDB', 'rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
         res = coll.find_one({'uid': uid})
         if res and res.has_key('package') and res['package'].has_key(package):
@@ -146,7 +146,7 @@ class MongoDB(object):
                 coll.update({'uid':uid}, {'$unset':{'package.%s' % package:''}})
     
     def get_packages(self, uid, table):
-        log_debug('MongoDB', 'get_packages->uid=%s' % str(uid))
+        #log_debug('MongoDB', 'get_packages->uid=%s' % str(uid))
         coll = self._get_collection(table)
         res = coll.find_one({'uid': uid})
         if res and res.has_key('package'):

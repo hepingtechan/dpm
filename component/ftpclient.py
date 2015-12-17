@@ -48,7 +48,7 @@ class FTPClient():
             self.ftp.login(ADMIN_NAME, ADMIN_PASSWORD) # must be normal user, for anonymous users are forbidden to change the filesystem
             ret = self.ftp.storbinary('STOR ' + filename, open(filepath, 'rb'), 1024)
             self.ftp.quit()
-            log_debug('FTPClient', 'finished uploading %s, version=%s, ret=%s'  % (package, version, str(ret)))
+            #log_debug('FTPClient', 'finished uploading %s, version=%s, ret=%s'  % (package, version, str(ret)))
             return ret
         finally:
             shutil.rmtree(dirname)

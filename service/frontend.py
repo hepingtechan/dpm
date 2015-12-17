@@ -25,7 +25,9 @@ from lib.stream import Stream
 from lib.log import log_err, log_debug
 from lib.stream import UID_LEN, HEAD_LEN
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
-from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS
+from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS, PKG_MAX
+
+BODY_MAX = 64
 
 class FrontendHandler(BaseRequestHandler):
     def _get_backend(self, uid):
@@ -33,7 +35,7 @@ class FrontendHandler(BaseRequestHandler):
         return BACKEND_SERVERS[n]
     
     def _forward(self, uid, src, dest):
-        log_debug('FrontendHandler', 'start to forward, uid=%s' % str(uid))
+        #log_debug('FrontendHandler', 'start to forward, uid=%s' % str(uid))
         dest.sendall(uid)
         buf = src.recv(HEAD_LEN - UID_LEN)
         if len(buf) != HEAD_LEN - UID_LEN:
@@ -41,7 +43,8 @@ class FrontendHandler(BaseRequestHandler):
             return
         dest.sendall(buf)
         total, = struct.unpack('I', buf[-4:])
-        if not total:
+        if not total or total >=  PKG_MAX / BODY_MAX:
+            log_err('FrontendHandler',  'failed to forward, invalid head, total=%d' % total)
             return
         cnt = 0
         while cnt < total:
@@ -51,6 +54,9 @@ class FrontendHandler(BaseRequestHandler):
                 return
             dest.sendall(head)
             length, = struct.unpack('H', head)
+            if length > BODY_MAX:
+                log_err('FrontendHandler',  'failed to forward, invalid length')
+                return
             body = ''
             while len(body) < length:
                 buf = src.recv(length - len(body))
@@ -74,13 +80,10 @@ class FrontendHandler(BaseRequestHandler):
         addr = self._get_backend(uid)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((addr, BACKEND_PORT))
-        log_debug('FrontendHandler', 'handler->connect to %s' % str(addr))
         try:
             self._forward(uid, self.request, sock)
             stream = Stream(sock)
             _, _, res = stream.readall()
-            print '222-11', res
-            print '222', str(res)
             stream = Stream(self.request)
             stream.write(res)
         finally:

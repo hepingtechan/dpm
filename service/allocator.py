@@ -34,20 +34,20 @@ TABLE_INST_ADDR = 'instaddr'
 TABLE_INST_USER = 'instuser'
 
 class Allocator(RPCServer):
-    def __init__(self, addr, port, hidden=False):
+    def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
         self._cache = {}
-        self._hidden = hidden
-        self._client =  MongoClient(ALLOC_DB, MONGO_PORT)
+        if ALLOC_DB:
+            self._client =  MongoClient(ALLOC_DB, MONGO_PORT)
+        else:
+            self._client =  MongoClient(localhost(), MONGO_PORT)
         if DEBUG:
             self._alloc_cnt = 0
-        
+    
     def _get_collection(self, name):
         return self._client.test[name]
     
     def add_installer(self, addr):
-        if self._hidden:
-            return
         log_debug('Allocator', 'add_installer starts!')
         try:
             coll = self._get_collection(TABLE_INST_ADDR)
@@ -65,19 +65,16 @@ class Allocator(RPCServer):
                 log_err('Allocator', 'failed to add installer, invalid installer total number table')
                 return
             inst = res.get('cnt')
-            print '11', inst
             coll = self._get_collection(TABLE_INST_ALLOC)
             coll.save({'_id':inst, 'count':0})
-            print '11-1'
             coll = self._get_collection(TABLE_INST_ADDR)
             coll.save({'_id':inst,'addr':addr})
-            print '11-2'
             return True
         except:
              log_err('Allocator', 'failed to add installer')
         
     def alloc_installer(self, uid):
-        #log_debug('Allocator', 'start to allocate installer')
+        log_debug('Allocator', 'start to allocate installer')
         try:
             coll = self._get_collection(TABLE_INST_TOTAL)
             info = coll.find_one({})
@@ -85,7 +82,6 @@ class Allocator(RPCServer):
                 log_err('Allocator', 'failed to allocate installer, invalid installer total number table')
                 return
             cnt = info.get('cnt')
-            #print '12->Allocator', 'allocate->cnt=%d' % cnt
             if cnt <= 0:
                 log_err('Allocator', 'failed to allocate installer, invalid cnt')
                 return
@@ -99,22 +95,16 @@ class Allocator(RPCServer):
                     i = random.randint(1, cnt)
                     if i not in candidates:
                         candidates.append(i)
-            #log_debug('12-1->Allocator', 'allocate -> candidates=%s, len(candidates)=%d' % (str(candidates), len(candidates)))
             
             coll = self._get_collection(TABLE_INST_ALLOC)
             result = coll.find({'_id':{'$in':candidates}})
             best = result[0].get('count')
-            #print '13->Allocator', 'allocate->best=%d' % best
             inst = result[0].get('_id')
-            #print '13-1', inst
             for item in result:
-                #print '14->Allocator', 'allocate, result->item=%s' % str(item)
                 cnt = item.get('count')
-                #print '14-1', cnt
                 if best > cnt:
                     inst = item.get('_id')
                     best = cnt
-            #print '15->Allocator', 'allocate, result->id=%d' % inst
             
             info = coll.find_and_modify({'_id':inst}, {'$inc':{'count':1}}, upsert=True)
             if not info:
@@ -123,12 +113,10 @@ class Allocator(RPCServer):
             
             coll = self._get_collection(TABLE_INST_ADDR)
             result = coll.find_one({'_id':inst})
-            #print '17->Allocator', 'allocate->result=%s' % str(result)
             if not result:
                 log_err('Allocator', 'failed to allocate installer, cannot get addr table')
                 return
             addr = result.get('addr')
-            #print '18->Allocator', 'allocate->uid=%s, addr=%s' % (str(uid), str(addr))
             coll = self._get_collection(TABLE_INST_USER)
             info = coll.save({'user':uid, 'addr':addr})
             if not info:
@@ -145,9 +133,7 @@ class Allocator(RPCServer):
         log_debug('Allocator', 'start to get installer, uid=%s' % str(uid))
         try:
             cache = self._cache
-            print '1 find', cache
             addr = cache.get(uid)
-            print '2, find', addr
             if addr:
                 return addr
             else:
@@ -159,9 +145,7 @@ class Allocator(RPCServer):
                 addr = info.get('addr')
                 if len(cache) >= CACHE_MAX:
                     cache.popitem()
-                print '3 find', cache,'##', addr
                 cache.update({uid:addr})
-                print '4 find', cache,'##', addr
                 return addr
         except:
             log_err('Allocator', 'failed to get installer')

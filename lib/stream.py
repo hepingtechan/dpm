@@ -35,8 +35,6 @@ class Stream(object):
         self._key = key
     
     def write(self, buf):
-        if not buf:
-            return
         if len(self._uid) != UID_LEN:
             log_err('Stream',  'invalid uid')
             return
@@ -65,7 +63,7 @@ class Stream(object):
     def read(self):
         head = self._sock.recv(4)
         if len(head) != 4:
-            log_err('Stream.read',  'failed to receive head, invalid head')
+            log_err('Stream',  'failed to receive head')
             return
         total, =  struct.unpack('I', head)
         cnt = 0
@@ -73,18 +71,18 @@ class Stream(object):
         while cnt < total:
             head = self._sock.recv(2)
             if len(head) != 2:
-                log_err('Stream.read',  'failed to receive, invalid head')
+                log_err('Stream',  'failed to receive')
                 return
             length, = struct.unpack('H', head)
             body = ''
             while len(body) < length:
                 buf = self._sock.recv(length - len(body))
                 if not buf:
-                    log_err('Stream.read',  'failed to receive body')
+                    log_err('Stream',  'failed to receive buf')
                     return
                 body += buf
             if len(body) != length:
-                log_err('Stream.read',  'failed to receive')
+                log_err('Stream',  'failed to receive body')
                 return
             if self._key:
                 res += rsa.decrypt(body, self._key)
@@ -96,15 +94,13 @@ class Stream(object):
     
     def readall(self):
         uid = self._sock.recv(UID_LEN)
-        #print '333', str(uid)
         if len(uid) != UID_LEN:
-            log_err('Stream.readall',  'failed to receive uid, invalid head')
-            return
+            log_err('Stream',  'failed to receive uid')
+            return (None, None, '')
         buf = self._sock.recv(FLG_LEN)
         if len(buf) != FLG_LEN:
-            log_err('Stream.readall',  'failed to receive buf, invalid head')
-            return
+            log_err('Stream',  'failed to receive flag')
+            return (None, None, '')
         flg = struct.unpack('I', buf)[0]
         buf = self.read()
-        #print '333-11', str(buf)
         return (uid, flg, buf)

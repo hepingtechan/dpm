@@ -29,10 +29,9 @@ class RPCClient():
         self.port = port
         
     def request(self, op, *args, **kwargs):
-        #log_debug('RPCClient', 'start to request, op=%s' % str(op))
+        log_debug('RPCClient', 'start to request, op=%s' % str(op))
         buf = pack(op, args, kwargs)
         res = self.dpmclient.request(self.addr, self.port, buf)
         if res:
             ret = loads(res)
-            #print 'RPCClient->request->111->ret[res]=', str(ret['res'])
             return ret['res']

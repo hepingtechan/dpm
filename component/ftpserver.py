@@ -26,6 +26,9 @@ from conf.path import PATH_REPO, PATH_ADMIN
 from twisted.protocols.ftp import FTPFactory, IFTPShell, FTPShell, FTPAnonymousShell
 from twisted.cred.checkers import AllowAnonymousAccess, FilePasswordDB, ANONYMOUS
 
+#from twisted.internet import epollreactor
+#epollreactor.install()
+
 class DPMFTPRealm():
     implements(IRealm)
     def __init__(self, anonymousRoot):
@@ -47,10 +50,11 @@ class DPMFTPRealm():
 
 class FTPServer():
     def __init__(self, port=21):
-        self.portal = Portal(DPMFTPRealm(PATH_REPO),[AllowAnonymousAccess(), FilePasswordDB(PATH_ADMIN)])        
+        self.portal = Portal(DPMFTPRealm(PATH_REPO), [AllowAnonymousAccess(), FilePasswordDB(PATH_ADMIN)])        
         self.factory = FTPFactory(self.portal)
         self._port = port
      
-    def run(self):    
+    def run(self):
+        #reactor.suggestThreadPoolSize(10)
         reactor.listenTCP(self._port, self.factory)
         reactor.run()

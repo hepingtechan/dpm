@@ -22,12 +22,12 @@ import shutil
 import zerorpc
 import tempfile
 import commands
-from lib.util import APP
 from threading import Lock
 from lib.db import Database
 from lib.zip import unzip_file
 from rpcclient import RPCClient
 from hash_ring import HashRing
+from lib.util import APP, localhost
 from lib.log import log_debug, log_err
 from conf.path import PATH_VDTOOLS
 from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
@@ -35,14 +35,15 @@ from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
 class App():
     def __init__(self):
         self._lock = Lock()
-        self._db = Database(addr=APP_DB, domain=APP)
+        if APP_DB:
+            self._db = Database(addr=APP_DB, domain=APP)
+        else:
+            self._db = Database(addr=localhost(), domain=APP)
     
     def _get_repo(self, package):
         ring = HashRing(REPOSITORY_SERVERS)
         server = ring.get_node(package)
-        print 'App->repository_server is', str(server)
         return server
-        #return '192.168.10.13'
     
     def _install(self, buf):
         dirname = tempfile.mkdtemp()
@@ -71,7 +72,6 @@ class App():
                 rpcclient = RPCClient(addr, REPOSITORY_PORT)
                 if not version:
                     version = rpcclient.request('version', package=package)
-                    print 'App->install', str(version)
                     if not version:
                         log_err('App', 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
                         return

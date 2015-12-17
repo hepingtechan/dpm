@@ -18,6 +18,7 @@
 #      MA 02110-1301, USA.
 
 import os
+import uuid
 import fcntl
 import struct
 import socket
@@ -27,7 +28,7 @@ import hashlib
 import random
 import tempfile
 import commands
-from hash_ring import HashRing
+from random import randint
 from conf.path import PATH_DRIVER
 from lib.zip import zip_dir, unzip_file 
 from lib.log import log_err, log_debug
@@ -41,19 +42,19 @@ def get_filename(package, version):
     return '%s-%s.zip' % (package, version)
 
 def _get_frontend():
-    ring = HashRing(FRONTEND_SERVERS)
-    num = random.randint(10,15)
-    server = ring.get_node(str(num))
-    print 'util->frontend_servers is', str(server)
-    return server
+    n = randint(0, len(FRONTEND_SERVERS) - 1)
+    return FRONTEND_SERVERS[n]
     
 def get_md5(text):
-    if type(text) is types.StringType:
+    if type(text) == str or type(text) == unicode:
         tmp = hashlib.md5()   
         tmp.update(text)
         return tmp.hexdigest()
     else:
         log_err('util', 'failed to get md5')
+
+def get_uid(user):
+    return uuid.uuid3(uuid.NAMESPACE_DNS, str(user)).hex
 
 def login(user, password):
     user = str(user)
@@ -72,7 +73,7 @@ def upload(path, uid, package, version, typ, key):
     os.remove(zipfilepath)
     addr = _get_frontend()
     rpcclient = RPCClient(addr, FRONTEND_PORT, uid, key)
-    ret  = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf, typ=typ)
+    ret = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf, typ=typ)
     if ret:
         log_debug('util', "finished uploading, package=%s, version=%s, ret=%s" % (package, version, str(ret)))
         return True
@@ -194,5 +195,4 @@ def _check_dep(path):
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
-    print '@@@@@@util->loaclhost', ip
     return ip
