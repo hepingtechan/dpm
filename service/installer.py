@@ -20,10 +20,9 @@
 from threading import Thread
 from component.app import App
 from component.driver import Driver
-from lib.log import log_debug, log_err
 from conf.config import INSTALLER_PORT
 from component.rpcserver import RPCServer
-from lib.util import APP, DRIVER, localhost
+from lib.util import APP, DRIVER, localhost, show_error
 
 class Installer(RPCServer):
     def __init__(self, addr, port):
@@ -37,13 +36,13 @@ class Installer(RPCServer):
         elif typ == DRIVER:
             return self._driver.install(uid, package, version)
         else:
-            log_err('Installer', "failed to install, invalid type, typ=%s" % str(typ))
+            show_error(self, 'failed to install, invalid type, typ=%s' % str(typ))
     
     def uninstall(self, uid, package, typ):
         if typ == APP:
             return self._app.uninstall(uid, package)
         else:
-            log_err('Installer', "failed to uninstall, invalid type, typ=%s" % str(typ))
+            show_error(self, 'failed to uninstall, invalid type, typ=%s' % str(typ))
     
     def get_packages(self, uid, typ):
         if typ == APP:

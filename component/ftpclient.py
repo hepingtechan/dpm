@@ -21,15 +21,19 @@ import os
 import shutil
 import tempfile
 from ftplib import FTP
-from lib.log import log_debug
-from lib.util import get_filename
+from lib.util import get_filename, show_class
 
+PRINT = False
 ADMIN_NAME = 'admin'
 ADMIN_PASSWORD = 'adminpassword'
 
 class FTPClient():
     def __init__(self):
         self.ftp =  FTP()
+    
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
     
     def _generate_zip(self, path, package, version, buf):
         filename = get_filename(package, version)
@@ -45,10 +49,10 @@ class FTPClient():
             filename = self._generate_zip(dirname, package, version, buf)
             filepath = os.path.join(dirname, filename)
             self.ftp.connect(addr, port)
-            self.ftp.login(ADMIN_NAME, ADMIN_PASSWORD) # must be normal user, for anonymous users are forbidden to change the filesystem
+            self.ftp.login(ADMIN_NAME, ADMIN_PASSWORD)
             ret = self.ftp.storbinary('STOR ' + filename, open(filepath, 'rb'), 1024)
             self.ftp.quit()
-            #log_debug('FTPClient', 'finished uploading %s, version=%s, ret=%s'  % (package, version, str(ret)))
+            self._print('finished uploading %s, version=%s, ret=%s'  % (str(package), str(version), str(ret)))
             return ret
         finally:
             shutil.rmtree(dirname)
@@ -63,7 +67,7 @@ class FTPClient():
             ret = self.ftp.retrbinary("RETR " + filename, open(path, 'wb').write)
             with open(path, 'rb') as f:
                 buf = f.read()
-            log_debug('FTPClient', 'finished downloading %s, version=%s'  % (package, version))
+            self._print('finished downloading %s, version=%s'  % (str(package), str(version)))
             return buf
         finally:
             shutil.rmtree(dirname)

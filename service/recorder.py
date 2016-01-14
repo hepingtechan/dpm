@@ -19,20 +19,19 @@
 
 from lib.util import localhost
 from datetime import datetime
+from hash_ring import HashRing
 from pymongo import MongoClient
-from lib.log import log_debug, log_err
+from conf.category import CATEGORIES
+from lib.util import show_class, show_error
 from component.rpcserver import RPCServer
-from conf.config import RECORDER_PORT, RECORDERDB_SERVERS, MONGO_PORT, CATEGORYDB_SERVERS, CATEGORIES, SHOW_TIME, DEBUG
+from conf.config import RECORDER_PORT, DB_SERVERS, MONGO_PORT, SHOW_TIME, DEBUG
 
-PAGE_SIZE = 3
+PAGE_SIZE = 8
 
-TABLE_CAT = 'pkgcat'
 TABLE_TOP = 'pkgtop'
-
-TABLE_INSTALL = 'pkginst'
 TABLE_AUTHOR = 'pkgauth'
 TABLE_COUNTER = 'pkgcnt'
-TABLE_PACKAGE = 'pkginfo'
+TABLE_CATEGORY = 'pkgcat'
 TABLE_DESCRIPTION = 'pkgdesc'
 
 TOP = 4
@@ -41,244 +40,257 @@ TOP_NAME = "top%d" % TOP
 if SHOW_TIME:
     from datetime import datetime
 
+PRINT = False
+
 class RecorderServer(object):
+    def _get_table(self, srv, table):
+        return srv + '_' + table
+    
     def __init__(self):
-        names = [TABLE_INSTALL, TABLE_AUTHOR, TABLE_COUNTER, TABLE_PACKAGE, TABLE_DESCRIPTION]
-        if len(RECORDERDB_SERVERS) != len(names):
-            log_err('RecorderServer', 'failed to initialize Recorder')
-            raise Exception('failed to initialize Recorder')
-        self._cat = {}
+        self._ring = HashRing(DB_SERVERS)
+        self._cat_coll = {}
         cnt = 0
         for i in CATEGORIES:
-            self._cat.update({CATEGORIES[i]:MongoClient(CATEGORYDB_SERVERS[cnt], MONGO_PORT).test})
+            self._cat_coll.update({CATEGORIES[i]:MongoClient(DB_SERVERS[cnt], MONGO_PORT).test})
             cnt += 1
-        self._clients = {}
-        for i in range(len(names)):
-            name = names[i]
-            self._clients.update({name:MongoClient(RECORDERDB_SERVERS[i], MONGO_PORT).test[name]})
+        self._coll = {}
+        for i in DB_SERVERS:
+            name = self._get_table(i, TABLE_AUTHOR)
+            self._coll.update({name:MongoClient(i, MONGO_PORT).test[TABLE_AUTHOR]})
+            name = self._get_table(i, TABLE_CATEGORY)
+            self._coll.update({name:MongoClient(i, MONGO_PORT).test[TABLE_CATEGORY]})
         if DEBUG:
             self._upload_cnt = 0
     
-    def get_collection(self, table, category=None):
-        log_debug('RecorderServer', 'get_collection starts, table=%s, category=%s' % (str(table), str(category)))
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
+    def get_collection(self, table, package=None, category=None):
+        self._print('get_collection starts, table=%s, category=%s' % (str(table), str(category)))
         if category:
-            cli = self._cat.get(category)
-            if not cli:
-                log_err('RecorderServer', 'failed to get collection, invalid category')
+            coll = self._cat_coll.get(category)
+            if not coll:
+                show_error(self, 'failed to get collection, invalid category')
                 return
-            return cli["%s_%s" % (table, str(category))]
+            return coll["%s_%s" % (table, str(category))]
         else:
-            cli = self._clients.get(table)
-            if not cli:
-                log_err('RecorderServer', 'failed to get collection')
+            srv = self._ring.get_node(package)
+            name = self._get_table(srv, table)
+            coll = self._coll.get(name)
+            if not coll:
+                show_error(self, 'failed to get collection')
                 return
-            return cli
+            return coll
     
     def get_categories(self):
         return CATEGORIES
     
-    def _get_packages(self, category, rank):
-        log_debug('RecorderServer', 'get_packages starts')
-        try:
-            result = []
-            coll = self.get_collection(TABLE_CAT, category)
-            res = coll.find_one({'rank':rank})
-            if res.has_key('packages'): 
-                for item in res['packages']:
-                    result.append(str(item['pkg']))
-            return result
-        except:
-            log_err('RecorderServer', 'get_packages failed')
+    def _get_category(self, package):
+            coll = self.get_collection(TABLE_CATEGORY, package=package)
+            res = coll.find_one({'pkg':package}, {'pkg':0, '_id':0})
+            if res:
+                return res.get('cat')
     
-    def get_packages(self, category, rank):
-        log_debug('RecorderServer', 'get_packages starts')
+    def get_description(self, package):
+        self._print('get_description starts, package=%s' %str(package))
         try:
-            return self._get_packages(category, rank)
-        except:
-            log_err('RecorderServer', 'get_packages failed')
-       
-    def get_descripton(self, package):
-        log_debug('RecorderServer', 'get_descripton starts, package=%s' %str(package))
-        try:
-            coll = self.get_collection(TABLE_DESCRIPTION)
-            res = coll.find_one({'pkg':package})
+            category = self._get_category(package)
+            if not category:
+                self._print('get_description, cannot find category, package=%s' % str(package))
+                return
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            res = coll.find_one({'pkg':package}, {'title':1, 'des':1, '_id':0})
             if res:
                 return (str(res['title']), str(res['des']))
             else:
-                log_debug('RecorderServer', 'get_descripton, cannot find description, package=%s' % str(package))
+                self._print('get_description, cannot find description, package=%s' % str(package))
         except:
-             log_err('RecorderServer', 'get_descripton failed')
+             show_error(self, 'get_description failed')
     
     def get_inst(self, package):
-        log_debug('RecorderServer', 'get_inst start, package=%s' %str(package))
+        self._print('get_inst start, package=%s' %str(package))
         try:
-            coll = self.get_collection(TABLE_INSTALL)
-            res = coll.find_one({'pkg':package})
+            category = self._get_category(package)
+            if not category:
+                self._print('get_inst, cannot find category, package=%s' % str(package))
+                return
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            res = coll.find_one({'pkg':package}, {'inst':1, '_id':0})
             if res:
-                return str(res['cnt'])
+                return str(res['inst'])
+            else:
+                return str(0)
         except:
-             log_err('RecorderServer', 'get_inst failed')
+             show_error(self, 'get_inst failed')
     
     def get_uid(self, package):
-        log_debug('RecorderServer', 'get_uid starts, package=%s' %str(package))
+        self._print('get_uid starts, package=%s' %str(package))
         try:
-            coll = self.get_collection(TABLE_AUTHOR)
-            res = coll.find_one({package:''})
+            coll = self.get_collection(TABLE_AUTHOR, package=package)
+            res = coll.find_one({'pkg':package}, {'uid':1, '_id':0})
             if res:
-                return res.get('uid')
+                return res['uid']
         except:
-             log_err('RecorderServer', 'get_uid failed')
+             show_error(self, 'get_uid failed')
     
     def get_package_detail(self, package):
-        log_debug('RecorderServer', 'get_package_detail starts, package=%s' % str(package))
+        self._print('get_package_detail starts, package=%s' % str(package))
         try:
-            cnt = self.get_inst(package)
-            if not cnt:
-                cnt = str(0)
-            title, _ = self.get_descripton(package)
-            if not title:
-                log_err('RecorderServer', 'get_package_detail failed, cannot find title')
+            category = self._get_category(package)
+            if not category:
+                self._print('get_package_detail, cannot find category, package=%s' % str(package))
                 return
-            return (cnt, title)
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            res = coll.find_one({'pkg':package}, {'inst':1, 'title':1, '_id':0})
+            if res:
+                inst = res['inst']
+                title = res['title']
+                if not inst or not title:
+                    show_error(self, 'get_package_detail failed, cannot find valid message')
+                    return
+                return (inst, title)
         except:
-            log_err('RecorderServer', 'get_package_detail failed')
+            show_error(self, 'get_package_detail failed')
     
     def get_packages_details(self, category, rank):
-        log_debug('RecorderServer', 'get_packages_details starts')
+        self._print('get_packages_details starts')
         try:
-            info = self._get_packages(category, rank)
-            res = []
-            for i in info:
-                cnt, title = self.get_package_detail(i)
-                item = {'pkg':i, 'title':title, 'cnt':cnt}
-                res.append(item)
-            return res
+            result = []
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            res = coll.find({'rank':rank}, {'pkg':1, 'title':1, 'inst':1, '_id':0})
+            if res:
+                for item in res:
+                    ret = {'pkg':item['pkg'], 'title':item['title'], 'inst':item['inst']}
+                    result.append(ret)
+            if SHOW_TIME:
+                self._print('get_packages_details , time=%d sec' % (datetime.utcnow() - start_time).seconds)
+            return result
         except:
-            log_err('RecorderServer', 'get_packages_details failed')
+            show_error(self, 'get_packages_details failed')
     
     def _get_top(self, category):
         result = []
-        coll = self.get_collection(TABLE_TOP, category)
-        res = coll.find_one({'name':TOP_NAME})
+        coll = self.get_collection(TABLE_TOP, category=category)
+        res = coll.find_one({'name':TOP_NAME}, {'name':0, '_id':0})
         if res:
-            del res['name']
-            del res['_id']
             for i in res:
                 result.append({str(i):str(res[i])})
-        return result
+            return result
     
     def get_top(self, category):
-        log_debug('RecorderServer', 'get_top starts, category=%s' %str(category))
+        self._print('get_top starts, category=%s' %str(category))
         try:
             return self._get_top(category)
         except:
-             log_err('RecorderServer', 'get_top failed')
+             show_error(self, 'get_top failed')
     
     def get_top_details(self, category):
-        log_debug('RecorderServer', 'get_top_details starts, category=%s' % str(category))
+        self._print('get_top_details starts, category=%s' % str(category))
         try:
             info = self._get_top(category)
             res = []
             for i in info:
                 pkg = i.keys()[0]
-                cnt, title = self.get_package_detail(pkg)
-                item = {'pkg':pkg, 'title':title, 'cnt':cnt}
+                inst, title = self.get_package_detail(pkg)
+                item = {'pkg':pkg, 'title':title, 'inst':inst}
                 res.append(item)
             return res
         except:
-            log_err('RecorderServer', 'get_top_details failed')
+            show_error(self, 'get_top_details failed')
     
     def get_counter(self, category):
-        log_debug('RecorderServer', 'get_counter starts, category=%s' % str(category))
+        self._print('get_counter starts, category=%s' % str(category))
         try:
-            coll = self.get_collection(TABLE_COUNTER)
-            res = coll.find_one({'cat': category})
-            log_debug('RecorderServer', 'get_counter->res=%s' %str(res))
+            coll = self.get_collection(TABLE_COUNTER, category=category)
+            res = coll.find_one({'cat': category}, {'cnt':1, '_id':0})
             if not res:
                 return str(0)
             else:
                 return str(res.get('cnt'))
         except:
-             log_err('RecorderServer', 'get_counter failed')
+             show_error(self, 'get_counter failed')
 
 class Recorder(RPCServer, RecorderServer):
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
         RecorderServer.__init__(self)
     
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
     def _update_counter(self, category):
-        log_debug('Recorder', 'update_counter->category=%s' % str(category))
+        self._print('update_counter->category=%s' % str(category))
         try:
-            coll = self.get_collection(TABLE_COUNTER)
+            coll = self.get_collection(TABLE_COUNTER, category=category)
             res = coll.find_and_modify({'cat': category}, {'$inc':{'cnt':1}}, upsert=True)
             if not res:
                 return 0
             else:
                 return res.get('cnt')
         except:
-             log_err('Recorder', 'failed to update counter')
+             show_error(self, 'failed to update counter')
        
     def upload(self, uid, category, package, title, description):
-        log_debug('Recorder', 'upload->category=%s, package=%s' % (str(category), str(package)))
+        self._print('upload->category=%s, package=%s' % (str(category), str(package)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
             if not category or not package or not description:
-                log_err('Recorder', 'failed to upload, invalid arguments')
+                show_error(self, 'failed to upload, invalid arguments')
                 return
+            coll = self.get_collection(TABLE_CATEGORY, package=package)
+            coll.update({'pkg':package}, {'cat':category, 'pkg':package}, upsert=True)
+            
             t = str(datetime.utcnow())
             cnt = self._update_counter(category)
             rank = cnt / PAGE_SIZE
-            coll = self.get_collection(TABLE_CAT, category)
-            coll.update({'rank':rank}, {'$addToSet':{'packages':{'pkg':package, 't':t}}}, upsert=True)
-            coll = self.get_collection(TABLE_DESCRIPTION)
-            coll.update({'pkg':package}, {'pkg':package,'title':title, 'des':description}, upsert=True)
-            coll = self.get_collection(TABLE_PACKAGE)
-            coll.update({'pkg':package}, {'pkg':package,'cat':category,'t':t}, upsert=True)
-            coll = self.get_collection(TABLE_AUTHOR)
-            coll.update({'uid':uid}, {'$set':{package:''}}, upsert=True)
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            coll.update({'pkg':package}, {'rank':rank, 'pkg':package,'title':title, 'des':description, 'inst':0, 't':t}, upsert=True)
+            
+            coll = self.get_collection(TABLE_AUTHOR, package=package)
+            coll.update({'uid':uid}, {'$set':{'pkg':package}}, upsert=True)
+            
             if SHOW_TIME:
-                log_debug('Recorder', 'upload, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                self._print('upload, time=%d sec' % (datetime.utcnow() - start_time).seconds)
             if DEBUG:
                 self._upload_cnt += 1
-                log_debug('Recorder', 'upload, count=%d' % self._upload_cnt)
+                self._print('upload, count=%d' % self._upload_cnt)
             return True
         except:
-             log_err('Recorder', 'failed to upload')
+             show_error(self, 'failed to upload')
     
     def install(self, package):
-        log_debug('Recorder', 'install->package=%s' %str(package))
+        self._print('install->package=%s' %str(package))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
-            coll = self.get_collection(TABLE_INSTALL)
-            res = coll.find_and_modify({'pkg': package}, {'$inc':{'cnt':1}}, upsert=True)
+            
+            category = self._get_category(package)
+            if not category:
+                self._print('install, cannot find category, package=%s' % str(package))
+                return
+            
+            coll = self.get_collection(TABLE_DESCRIPTION, category=category)
+            res = coll.find_and_modify({'pkg': package}, {'$inc':{'inst':1}}, upsert=True)
             if not res:
                 cnt = 1
             else:
-                cnt = res.get('cnt')
+                cnt = res.get('inst')
                 if cnt != None:
                     cnt += 1
                 if not cnt:
-                    log_err('Recorder', 'failed to install, invalid counter')
+                    show_error(self, 'failed to install, invalid counter')
                     return
-            coll = self.get_collection(TABLE_PACKAGE)
-            res = coll.find_one({'pkg':package})
-            if not res:
-                log_err('Recorder', 'failed to install, cannot get package')
-                return
-            category = res.get('cat')
-            if not category:
-                log_err('Recorder', 'failed to install, cannot get category')
-                return
-            coll = self.get_collection(TABLE_TOP, category)
-            res = coll.find_one({'name':TOP_NAME})
-            if not res or len(res) < TOP + 2:
-                coll.update({'name':TOP_NAME},  {'$set':{package:cnt}}, upsert=True)  
+            coll = self.get_collection(TABLE_TOP, category=category)
+            res = coll.find_one({'name':TOP_NAME}, {'name':0, '_id':0})
+            if not res or len(res) < TOP:
+                coll.update({'name':TOP_NAME}, {'$set':{package:cnt}}, upsert=True)  
                 return True
             else:
-                del res['name']
-                del res['_id']
                 if package not in res:
                     for i in res:
                         if res[i] < cnt:
@@ -286,15 +298,15 @@ class Recorder(RPCServer, RecorderServer):
                             coll.update({'name':TOP_NAME},  {'$set':{package:cnt}}, upsert=True)
                             break
                     if SHOW_TIME:
-                        log_debug('Recorder', 'install, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                        self._print('install, time=%d sec' % (datetime.utcnow() - start_time).seconds)
                     return True
                 else:
                     coll.update({'name':TOP_NAME},  {'$set':{package:cnt}})
                     if SHOW_TIME:
-                        log_debug('Recorder', 'install, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                        self._print('install, time=%d sec' % (datetime.utcnow() - start_time).seconds)
                     return True
         except:
-            log_err('Recorder', 'failed to install')
+            show_error(self, 'failed to install')
     
 def main():
     recorder = Recorder(localhost(), RECORDER_PORT)

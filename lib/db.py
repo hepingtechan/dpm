@@ -20,10 +20,11 @@
 import os
 import shelve
 from pymongo import MongoClient
-from lib.log import log_debug, log_err
 from conf.path import PATH_SHELVEDB
 from conf.config import MONGO_PORT
+from lib.util import show_class, show_error
 
+PRINT = False
 TABLE_VERSION = 'pkgversion'
 TABLE_PACKAGE = 'pkgcontent'
 
@@ -34,6 +35,10 @@ class MongoDB(object):
         else:
             self._domain = ''
         self._addr = addr
+    
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
     
     def _get_table(self, table):
         if self._domain:
@@ -47,65 +52,56 @@ class MongoDB(object):
         return client.test[name]
 
     def has_version(self, uid, package, version, table):
-        #log_debug('MongoDB', 'has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         if not version:
+            show_error(self, 'failed to has version, the %s has no %s version' % (str(package), str(version)))
             return
         coll = self._get_collection(table)
-        res = coll.find_one({'package': package})
+        res = coll.find_one({'package': package}, {'uid': 1, 'version': 1, '_id': 0})
         if res and res.get('uid') == uid and res.get('version') == version:
             return True
     
     def get_version(self, package, table):
-        #log_debug('MongoDB', 'get_version->package=%s' % str(package))
+        self._print('get_version->package=%s' % str(package))
         coll = self._get_collection(table)
-        res = coll.find_one({'package': package})
+        res = coll.find_one({'package': package}, {'uid': 1, 'version': 1, '_id': 0})
         if res:
-            #log_debug('MongoDB', 'get_version->version=%s' % str(res.get('version')))
             return (res.get('uid'), res.get('version'))
         return (None, None)
     
     def set_version(self, uid, package, version, table):
-        #log_debug('MongoDB', 'set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'package': package})
+        res = coll.find_one({'package': package}, {'uid': 1, '_id': 0})
         if res:
             if res.get('uid') == uid:
-                coll.update({'package':package}, {'$set': {'version': version}})
+                coll.update({'package':package}, {'$set': {'version': version}}, upsert=True)
         else:
             coll.save({'uid':uid, 'package':package, 'version':version})
-
-    def get_uid(self, package, table):
-        #log_debug('MongoDB', 'get_uid->package=%s' %  str(package))
-        name = self._get_table(table)
-        coll = self._get_collection(name)
-        res = coll.find_one({'package':package})
-        if res:
-            #log_debug('MongoDB', 'get_uid->res=%s' %  str(res))
-            return res.get('uid')
     
     def has_package(self, uid, package, version, table):
-        #log_debug('MongoDB', 'has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
+        self._print('has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid})
+        res = coll.find_one({'uid': uid}, {'_id':0})
         if res and res.has_key('package'):
             if res['package'].has_key(package):
                 if version:
                     versions = res['package'][package]
                     for i in versions:
                         if i['version'] == version:
-                            #log_debug('MongoDB', 'has_package->i[version]=%s' % (str(i['version'])))
                             return True
                 else:
                     return True
     
     def get_package(self, uid, package, version, table):
-        #log_debug('MongoDB', 'get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid})
+        res = coll.find_one({'uid': uid}, {'_id':0})
         if res and res.has_key('package'):
             if res['package'].has_key(package):
                 versions = res['package'][package]
                 if not versions:
+                    show_error(self, 'failed to get package, invalid versions')
                     return
                 item = None
                 if not version:
@@ -119,36 +115,35 @@ class MongoDB(object):
                     return (item['version'], item['output'])
     
     def set_package(self, uid, package, version, output, table):
-        #log_debug('MongoDB', 'set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid})
+        res = coll.find_one({'uid': uid}, {'uid':0, '_id':0})
         if res and res.has_key('package') and  res['package'].has_key(package):
             versions = res['package'][package]
             for item in versions:
                 if item['version'] == version:
-                    log_err('MongoDB', 'failed to set package, invalid version, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+                    show_error(self, 'failed to set package, invalid version, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
                     return
-            coll.update({'uid':uid}, {'$addToSet': {'package.%s' % package: {'version':version, 'output':output}}})
+            coll.update({'uid':uid}, {'$addToSet': {'package.%s' % package: {'version':version, 'output':output}}}, upsert=True)
         else:
             if not res:
                 coll.save({'uid':uid, 'package':{package: [{'version':version, 'output':output}]}})
             else:
-                coll.update({'uid':uid}, {'$set': {'package.%s' % package:[{'version':version, 'output':output}]}})
-        #log_debug('MongoDB', 'set_package->res=%s' % str(res))
+                coll.update({'uid':uid}, {'$set': {'package.%s' % package:[{'version':version, 'output':output}]}}, upsert=True)
     
     def rm_package(self, uid, package, version, table):
-        #log_debug('MongoDB', 'rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid})
+        res = coll.find_one({'uid': uid}, {'uid':0, '_id':0})
         if res and res.has_key('package') and res['package'].has_key(package):
-            coll.update({'uid':uid}, {'$pull':{'package.%s' % package:{'version':version}}})
+            coll.update({'uid':uid}, {'$pull':{'package.%s' % package:{'version':version}}}, upsert=True)
             if 1 == len(res['package'][package]):
-                coll.update({'uid':uid}, {'$unset':{'package.%s' % package:''}})
+                coll.update({'uid':uid}, {'$unset':{'package.%s' % package:''}}, upsert=True)
     
     def get_packages(self, uid, table):
-        #log_debug('MongoDB', 'get_packages->uid=%s' % str(uid))
+        self._print('get_packages->uid=%s' % str(uid))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid})
+        res = coll.find_one({'uid': uid}, {'_id':0})
         if res and res.has_key('package'):
             return res['package'].keys()
         
@@ -162,37 +157,28 @@ class ShelveDB(object):
         if not os.path.exists(self._path):
             os.makedirs(self._path, 0o755)
     
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
     def _get_path(self, table):
         return os.path.join(self._path, table)
     
-    def get_uid(self, package, table):
-        log_debug('ShelveDB', 'get_uid->package=%s' %  str(package))
-        path = self._get_path(table)
-        info = shelve.open(path)
-        try:
-            if not info:
-                return
-            for i in info:
-                if info[i].has_key(package):
-                    return i
-        finally:
-            info.close()
-    
     def has_version(self, uid, package, version, table):
-        log_debug('ShelveDB', 'has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('has_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         path = self._get_path(table)
         info = shelve.open(path)
         try:
             if not info:
+                show_error(self, 'failed to has version, invalid information, package=%s, version=%s' % (str(package), str(version)))
                 return
-            log_debug('ShelveDB', 'has_version->info=%s' % str(info)) 
             if info.has_key(uid) and info[uid].has_key(package) and info[uid][package] == version:
                 return True
         finally:
             info.close()
     
     def get_version(self, package, table):
-        log_debug('ShelveDB', 'get_version->package=%s' % str(package))
+        self._print('get_version->package=%s' % str(package))
         path = self._get_path(table)
         info = shelve.open(path)
         try:
@@ -205,7 +191,7 @@ class ShelveDB(object):
             info.close()
     
     def set_version(self, uid, package, version, table):
-         log_debug('ShelveDB', 'set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+         self._print('set_version->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
          path = self._get_path(table)
          info = shelve.open(path, writeback=True)
          try:
@@ -213,18 +199,17 @@ class ShelveDB(object):
                 if info[uid].has_key(package):
                     info[uid][package] = version
                 else:
-                    info[uid].update( {package: version})
+                    info[uid].update({package: version})
             else:
                 info[uid] = {package: version}
          finally:
             info.close()
     
     def has_package(self, uid, package, version, table):
-        log_debug('ShelveDB', 'has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
+        self._print('has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
         path = self._get_path(table)
         info = shelve.open(path)
         try:
-            log_debug('ShelveDB', 'has_package->info=%s, uid=%s, package=%s' % (str(info), str(uid), str(package)))
             if info and info.has_key(uid) and info[uid].has_key(package):
                 if version:
                     return info[uid][package].has_key(version)
@@ -234,7 +219,7 @@ class ShelveDB(object):
             info.close()
     
     def get_package(self, uid, package, version, table):
-        log_debug('ShelveDB', 'get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         path = self._get_path(table)
         info = shelve.open(path)
         try:
@@ -250,7 +235,7 @@ class ShelveDB(object):
             info.close()
     
     def set_package(self, uid, package, version, buf, table):
-         log_debug('ShelveDB', 'set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+         self._print('set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
          path = self._get_path(table)
          info = shelve.open(path, writeback=True)
          try:
@@ -261,12 +246,11 @@ class ShelveDB(object):
                     info[uid].update( {package: {version: buf}})
             else:
                 info[uid] = {package: {version: buf}}
-            log_debug('ShelveDB', 'set_package->info=%s' % str(info))
          finally:
             info.close()
 
     def rm_package(self, uid, package, version, table):
-        log_debug('ShelveDB', 'rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         path = self._get_path(table)
         info = shelve.open(path, writeback=True)
         try:
@@ -277,12 +261,11 @@ class ShelveDB(object):
                         del info[uid][package]
                 else:
                     del info[uid][package]
-                log_debug('ShelveDB', 'rm_package->info=%s' % str(info))
         finally:
             info.close()
     
     def get_packages(self, uid, table):
-        log_debug('ShelveDB', 'get_packages->uid=%s' % str(uid))
+        self._print('get_packages->uid=%s' % str(uid))
         path = self._get_path(table)
         info = shelve.open(path, writeback=True)
         try:
@@ -297,9 +280,6 @@ class Database(object):
             self._db = ShelveDB(domain)
         else:
             self._db = MongoDB(addr, domain)
-    
-    def get_uid(self, package, table=TABLE_PACKAGE):
-        return self._db.get_uid(package, table)
     
     def has_version(self, uid, package, version, table=TABLE_VERSION):
         return self._db.has_version(uid, package, version, table)

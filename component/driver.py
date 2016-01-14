@@ -17,22 +17,31 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-from lib.log import log_err, log_debug
+from hash_ring import HashRing
+from lib.util import show_class, show_error
 from component.rpcclient import RPCClient
-from conf.config import REPOSITORY_PORT
+from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS
+
+PRINT = False
 
 class Driver(object):
-        def _get_repo(self, package):
-            return '127.0.0.1'
-        
-        def install(self, uid, package, version):
-            addr = self._get_repo(package)
-            rpcclient = RPCClient(addr, REPOSITORY_PORT)
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
+    def _get_repo(self, package):
+        ring = HashRing(REPOSITORY_SERVERS)
+        server = ring.get_node(package)
+        return server
+    
+    def install(self, uid, package, version):
+        addr = self._get_repo(package)
+        rpcclient = RPCClient(addr, REPOSITORY_PORT)
+        if not version:
+            version = rpcclient.request('version', package=package)
             if not version:
-                version = rpcclient.request('version', package=package)
-                if not version:
-                    log_err('Driver', 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
-                    return
-            ret = rpcclient.request('download', package=package, version=version)
-            log_debug('Driver', 'finished installing %s, version=%s' % (package, version))
-            return ret
+                show_error(self, 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
+                return
+        ret = rpcclient.request('download', package=package, version=version)
+        self._print('finished installing driver %s, version=%s' % (package, version))
+        return ret

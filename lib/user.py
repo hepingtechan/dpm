@@ -24,47 +24,60 @@ from lib.util import get_uid
 from hash_ring import HashRing
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
-from lib.log import log_debug, log_err
-from conf.config import MONGO_PORT, USERDB_SERVERS, SHOW_TIME
-
-TABLE_USERINFO = 'userdb'
+from lib.util import show_class, show_error
+from conf.config import MONGO_PORT, DB_SERVERS, SHOW_TIME
 
 if SHOW_TIME:
     from datetime import datetime
 
+PRINT = False
+RETRY_MAX = 3
 CACHE_MAX = 4096
+TABLE_USERINFO = 'userdb'
 
 class User(object):
     def __init__(self):
         self._clients = []
         self._private_keys = {}
         self._public_keys = {}
-        for i in USERDB_SERVERS:
+        for i in DB_SERVERS:
             self._clients.append(MongoClient(i, MONGO_PORT).test) 
     
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
     def _get_collection(self, uid, table):
-        ring = HashRing([i for i in range(len(USERDB_SERVERS))])
+        ring = HashRing([i for i in range(len(DB_SERVERS))])
         cli = self._clients[ring.get_node(uid)]
         return cli[table]
     
     def _generate_key(self):
-        log_debug('User', 'generate_key starts')
+        self._print('generate_key starts')
         try:
-            pubkey, privkey = rsa.newkeys(512)
-            pub = pubkey.save_pkcs1()
-            priv = privkey.save_pkcs1()
-            return (pub, priv)
+            pubkey = None
+            privkey = None
+            for _ in range(RETRY_MAX):
+                try:
+                    pubkey, privkey = rsa.newkeys(512)
+                    break
+                except:
+                    pass
+            if pubkey and privkey:
+                pub = pubkey.save_pkcs1()
+                priv = privkey.save_pkcs1()
+                return (pub, priv)
         except:
-            log_err('User', 'failed to generate key')
+            show_error(self, 'failed to generate key')
             
     def get_public_key(self, user):
-        log_debug('User', 'get_public_key->user=%s' % str(user))
+        self._print('get_public_key->user=%s' % str(user))
         try:
             uid = get_uid(user)
             key = self._public_keys.get(uid)
             if not key:
                 coll = self._get_collection(uid, TABLE_USERINFO)
-                res = coll.find_one({'user': user})
+                res = coll.find_one({'user': user}, {'pubkey':1, '_id':0})
                 key = res.get('pubkey')
                 if key:
                     if len(self._public_keys) >= CACHE_MAX:
@@ -72,15 +85,15 @@ class User(object):
                     self._public_keys.update({uid:key})
             return (uid, key)
         except:
-            log_err('User', 'failed to get public key')
+            show_error(self, 'failed to get public key')
         
     def get_private_key(self, uid):
-        log_debug('User', 'get_private_key->uid=%s' % str(uid))
+        self._print('get_private_key->uid=%s' % str(uid))
         try:
             key = self._private_keys.get(uid)
             if not key:
                 coll = self._get_collection(uid, TABLE_USERINFO)
-                res = coll.find_one({'uid': uid})
+                res = coll.find_one({'uid': uid}, {'privkey':1, '_id':0})
                 key = res.get('privkey')
                 if key:
                     if len(self._private_keys) >= CACHE_MAX:
@@ -88,62 +101,60 @@ class User(object):
                     self._private_keys.update({uid:key})
             return key
         except:
-            log_err('User', 'failed to get private key')
+            show_error(self, 'failed to get private key')
     
     def get_password(self, user):
-        log_debug('User', 'get_password->user=%s' % str(user))
+        self._print('get_password->user=%s' % str(user))
         try:
             uid = get_uid(user)
             coll = self._get_collection(uid, TABLE_USERINFO)
-            res = coll.find_one({'user': user})
+            res = coll.find_one({'user': user}, {'password':1, '_id':0})
             if res:
                 return res.get('password')
         except:
-            log_err('User', 'failed to get password')
+            show_error(self, 'failed to get password')
         
     def get_name(self, uid):
-        log_debug('User', 'get_name->uid=%s' % str(uid))
+        self._print('get_name->uid=%s' % str(uid))
         try:
             coll = self._get_collection(uid, TABLE_USERINFO)
-            res = coll.find_one({'uid': uid})
+            res = coll.find_one({'uid': uid}, {'user':1, '_id':0})
             if res:
                 return res.get('user')
         except:
-            log_err('User', 'failed to get name')
+            show_error(self, 'failed to get name')
     
     def add(self, user, pwd, email):
-        log_debug('User', 'add starts, add->user=%s, pwd=%s, email=%s' % (str(user), str(pwd), str(email)))
+        self._print('add starts, add->user=%s, pwd=%s, email=%s' % (str(user), str(pwd), str(email)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
             uid = get_uid(user)
             coll = self._get_collection(uid, TABLE_USERINFO)
-            res = coll.find_one({'user':user})
+            res = coll.find_one({'user':user}, {'uid':1, '_id':0})
             if res:
-                log_err('User', 'failed to register, invalid user, the user has been registered')
+                show_error(self, 'failed to register, invalid user, the user has been registered')
                 return
             pubkey, privkey = self._generate_key()
             info = coll.save({'user':user, 'password':pwd, 'email':email, 'uid':uid, 'pubkey':pubkey, 'privkey':privkey})
             if not info:
-                log_err('User', 'failed to register, failed to save user info')
+                show_error(self, 'failed to register, failed to save user info')
                 return
             if SHOW_TIME:
-                log_debug('User', 'add, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                self._print('add, time=%d sec' % (datetime.utcnow() - start_time).seconds)
             return uid
-        finally:
-            pass
-        #except:
-        #    log_err('User', 'failed to register, invalid register infotmation')
+        except:
+            show_error(self, 'failed to register, invalid register information')
     
     def remove(self, user):
-        log_debug('User', 'remove starts')
+        self._print('remove starts')
         try:
             uid = get_uid(user)
             coll = self._get_collection(uid, TABLE_USERINFO)
-            info = coll.find_one({'user':user})
-            if info:
-                coll.remove(info['_id'])
+            res = coll.find_one({'user':user}, {'uid':1})
+            if res:
+                coll.remove(res['_id'])
                 return True
         except:
-            log_err('User', 'failed to get public key')
+            show_error(self, 'failed to get public key')
     

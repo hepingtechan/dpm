@@ -25,13 +25,13 @@ import socket
 import types
 import shutil
 import hashlib
-import random
 import tempfile
 import commands
 from random import randint
 from conf.path import PATH_DRIVER
 from lib.zip import zip_dir, unzip_file 
 from lib.log import log_err, log_debug
+from conf.category import CATEGORIES
 from component.rpcclient import RPCClient
 from conf.config import IFACE, FRONTEND_SERVERS, FRONTEND_PORT
 
@@ -75,7 +75,6 @@ def upload(path, uid, package, version, typ, key):
     rpcclient = RPCClient(addr, FRONTEND_PORT, uid, key)
     ret = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf, typ=typ)
     if ret:
-        log_debug('util', "finished uploading, package=%s, version=%s, ret=%s" % (package, version, str(ret)))
         return True
     else:
         log_err('util', 'failed to upload, uid=%s, package=%s, version=%s, typ=%s' % (str(uid), str(package), str(version), str(typ)))
@@ -93,13 +92,13 @@ def install(uid, package, version, typ):
     ret = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
     if not ret:
         log_err('util', 'failed to install, uid=%s, package=%s, version=%s, typ=%s' % (str(uid), str(package), str(version), str(typ)))
+        return
     return ret
 
 def install_driver(uid, driver, version=None):
     driver_path = os.path.join(PATH_DRIVER, driver)
     if os.path.exists(driver_path):
-        log_err('util', 'failed to install driver, %s exists' % str(driver))
-        return False
+        shutil.rmtree(driver_path)
     ret = install(uid, driver, version, DRIVER)
     if not ret:
         log_err('util', 'failed to install driver, uid=%s, driver=%s, version=%s' % (str(uid), str(driver), str(version)))
@@ -111,7 +110,7 @@ def install_driver(uid, driver, version=None):
             f.write(ret)
         dest = os.path.join(dirname, driver)
         unzip_file(src, dest)
-        dep_path = os.path.join(dest, 'dependency')
+        dep_path = os.path.join(dest, 'dep')
         if not _check_dep(dep_path):
             log_err('util', 'failed to install driver, invalid dependency, uid=%s, driver=%s, version=%s' % (str(uid), str(driver), str(version)))
             return False
@@ -121,8 +120,8 @@ def install_driver(uid, driver, version=None):
         shutil.rmtree(dirname)
     return True
 
-def install_app(uid, app, version=None):
-     return install(uid, app, version, APP)
+def install_app(uid, package, version=None):
+     return install(uid, package, version, APP)
 
 def uninstall(uid, package, typ):
     addr = _get_frontend()
@@ -130,10 +129,11 @@ def uninstall(uid, package, typ):
     ret = rpcclient.request('uninstall', uid=uid, package=package, typ=typ)
     if not ret:
         log_err('util', 'failed to uninstall, uid=%s, package=%s, typ=%s' % (str(uid), str(package), str(typ)))
+        return
     return ret
 
 def uninstall_app(uid, app):
-    uninstall(uid, app, typ=APP)
+    return uninstall(uid, app, typ=APP)
 
 def _check_dep(path):
     if os.path.isfile(path):
@@ -150,7 +150,7 @@ def _check_dep(path):
                             for str_blank in  str_equal.split():
                                 res.append(str_blank)
                     
-                    if (len(res) % 2 == 0):
+                    if len(res) % 2 == 0:
                         if len(res):
                             log_err('util', 'failed to check dependency, invalid format' )
                             return False
@@ -171,28 +171,43 @@ def _check_dep(path):
                             for installer in installers:
                                 installer_name = installer
                                 if package_version == '': 
-                                    cmd = '%s install %s' % (installer_name, package_name)
+                                    cmd = '%s install %s' % (str(installer_name), str(package_name))
                                 else :
-                                    cmd = '%s install %s==%s' % (installer_name, package_name, package_version)
+                                    cmd = '%s install %s==%s' % (str(installer_name), str(package_name), str(package_version))
                                 status, output = commands.getstatusoutput(cmd)
                                 if status == 0:
                                     log_debug('util', 'check dependency, finished installing %s' % package_name)
                                     break
+                            if status != 0:
+                                log_err('util', 'check dependency, invalid installer, failed to install %s' % str(package_name))
+                                return False
                         else:
                             if package_version == '':
-                                cmd = '%s install %s' % (installer_name, package_name)
+                                cmd = '%s install %s' % (str(installer_name), str(package_name))
                             else:
-                                cmd = '%s install %s==%s' % (installer_name, package_name, package_version)
+                                cmd = '%s install %s==%s' % (str(installer_name), str(package_name), str(package_version))
                             status, output = commands.getstatusoutput(cmd)
                             if status == 0:
-                                log_debug('util', 'check dependency, finished installing %s' % package_name)
+                                log_debug('util', 'check dependency, finished installing %s' % str(package_name))
                             else:
-                                log_err('util', 'check dependency, failed to install %s' % package_name)
+                                log_err('util', 'check dependency, failed to install %s' % str(package_name))
+                                return False
                 except:
-                    continue # if it is blank, continue. else return False above
-    return True
+                    continue # if it is blank, continue. else return False
+        return True
 
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
     return ip
+
+def check_category(category):
+    if CATEGORIES.has_key(category):
+        return CATEGORIES.get(category)
+
+def show_class(cls, text):
+    log_debug(cls.__class__.__name__, text)
+    
+def show_error(cls, text):
+    log_err(cls.__class__.__name__, text)
+

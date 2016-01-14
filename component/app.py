@@ -27,10 +27,11 @@ from lib.db import Database
 from lib.zip import unzip_file
 from rpcclient import RPCClient
 from hash_ring import HashRing
-from lib.util import APP, localhost
-from lib.log import log_debug, log_err
-from conf.path import PATH_VDTOOLS
+from conf.path import PATH_INSTALLER
+from lib.util import APP, localhost, show_class, show_error
 from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
+
+PRINT = False
 
 class App():
     def __init__(self):
@@ -39,6 +40,10 @@ class App():
             self._db = Database(addr=APP_DB, domain=APP)
         else:
             self._db = Database(addr=localhost(), domain=APP)
+    
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
     
     def _get_repo(self, package):
         ring = HashRing(REPOSITORY_SERVERS)
@@ -53,9 +58,8 @@ class App():
                 f.write(buf)
             dest = os.path.join(dirname, 'app')
             unzip_file(src, dest)
-            cmd = 'python %s %s' % (PATH_VDTOOLS, dest)
+            cmd = 'python %s %s' % (PATH_INSTALLER, dest)
             status, output = commands.getstatusoutput(cmd)
-            log_debug('App',  '_installing, status=%s, output=%s' % (str(status), str(output)))
             if status ==  0:
                 return output
         finally:
@@ -65,7 +69,7 @@ class App():
         self._lock.acquire()
         try:
             if self._db.has_package(uid, package, None):
-                log_err('App', 'failed to install, cannot install %s again' % package)
+                show_error(self , 'failed to install, cannot install %s again' % package)
                 return
             else:
                 addr = self._get_repo(package)
@@ -73,16 +77,16 @@ class App():
                 if not version:
                     version = rpcclient.request('version', package=package)
                     if not version:
-                        log_err('App', 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
+                        show_error(self , 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
                         return
                 ret = rpcclient.request('download', package=package, version=version)
                 if ret:
                     result = self._install(ret)
                     if result:
                         self._db.set_package(uid, package, version, result)
-                        log_debug('App',  'finished installing %s, version=%s' % (package, version))
+                        self._print('finished installing %s, version=%s' % (package, version))
                         return True
-            log_err('App', 'failed to install %s' % package)
+            show_error(self , 'failed to install %s' % package)
             return
         finally:
             self._lock.release()
@@ -94,7 +98,7 @@ class App():
         self._lock.acquire()
         try:
             if not self._db.has_package(uid, package, None):
-                log_err('App', 'failed to uninstall %s ' % package)
+                show_error(self , 'failed to uninstall %s ' % package)
                 return
             version, info = self._db.get_package(uid, package, None)
             if info:

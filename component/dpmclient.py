@@ -33,7 +33,7 @@ class DPMClient():
     def request(self, addr, port, buf):
         self._lock.acquire()
         try:
-            return self._request(addr, port ,buf)
+            return self._request(addr, port, buf)
         finally:
             self._lock.release()
     

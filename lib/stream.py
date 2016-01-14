@@ -60,27 +60,32 @@ class Stream(object):
             cnt += 1
         self._sock.recv(1)
     
+    def _recv(self, length):
+        buf = ''
+        while length > 0:
+            tmp = self._sock.recv(length)
+            if tmp:
+                buf += tmp
+                length -= len(tmp)
+            else:
+                break
+        return buf
+    
     def read(self):
-        head = self._sock.recv(4)
+        head = self._recv(4)
         if len(head) != 4:
-            log_err('Stream',  'failed to receive head')
+            log_err('Stream', 'failed to receive head')
             return
         total, =  struct.unpack('I', head)
         cnt = 0
         res = ''
         while cnt < total:
-            head = self._sock.recv(2)
+            head = self._recv(2)
             if len(head) != 2:
                 log_err('Stream',  'failed to receive')
                 return
             length, = struct.unpack('H', head)
-            body = ''
-            while len(body) < length:
-                buf = self._sock.recv(length - len(body))
-                if not buf:
-                    log_err('Stream',  'failed to receive buf')
-                    return
-                body += buf
+            body = self._recv(length)
             if len(body) != length:
                 log_err('Stream',  'failed to receive body')
                 return
@@ -93,11 +98,11 @@ class Stream(object):
         return res
     
     def readall(self):
-        uid = self._sock.recv(UID_LEN)
+        uid = self._recv(UID_LEN)
         if len(uid) != UID_LEN:
             log_err('Stream',  'failed to receive uid')
             return (None, None, '')
-        buf = self._sock.recv(FLG_LEN)
+        buf = self._recv(FLG_LEN)
         if len(buf) != FLG_LEN:
             log_err('Stream',  'failed to receive flag')
             return (None, None, '')

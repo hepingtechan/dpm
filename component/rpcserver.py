@@ -21,7 +21,7 @@ from lib.user import User
 from lib.bson import dumps
 from lib.package import unpack
 from dpmserver import DPMServer
-from lib.log import log_debug, log_err
+from lib.util import show_error
 
 class RPCServer(object):   
     def __init__(self, addr, port, user=None):
@@ -45,10 +45,7 @@ class RPCServer(object):
     def proc(self, buf):
         try:
             op, args, kwargs = unpack(buf)
-            #log_debug('RPCServer', 'proc, op=%s' % str(op))
             return self.__proc(op, args, kwargs)
-        finally:
-            pass
-        #except:
-           #log_err('RPCServer', 'failed to process')
+        except:
+           show_error(self, 'failed to process')
     

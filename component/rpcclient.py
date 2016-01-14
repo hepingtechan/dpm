@@ -18,7 +18,6 @@
 #      MA 02110-1301, USA.
 
 from lib.bson import loads
-from lib.log import log_debug
 from lib.package import pack
 from dpmclient import DPMClient
 
@@ -29,7 +28,6 @@ class RPCClient():
         self.port = port
         
     def request(self, op, *args, **kwargs):
-        log_debug('RPCClient', 'start to request, op=%s' % str(op))
         buf = pack(op, args, kwargs)
         res = self.dpmclient.request(self.addr, self.port, buf)
         if res:

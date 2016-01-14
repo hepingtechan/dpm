@@ -23,38 +23,42 @@ import socket
 import threading
 from lib.stream import Stream
 from conf.config import SHOW_TIME
-from lib.log import log_err, log_debug
+from lib.util import show_class, show_error
 from lib.stream import UID_LEN, FLG_LEN, FLG_SEC
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 
 if SHOW_TIME:
     from datetime import datetime
 
+PRINT = False
 CACHE_MAX = 4096
 
 class DPMRequestHandler(BaseRequestHandler):
+    def _print(self, text):
+        if PRINT:
+            show_class(self, text)
+    
     def handle(self):
         if SHOW_TIME:
             start_time = datetime.utcnow()
-        #log_debug('DPMRequestHandler', 'handle->start' )
         uid = self.request.recv(UID_LEN)
         if len(uid) != UID_LEN:
-            log_err('DPMRequestHandler', 'failed to handle, invalid head')
+            show_error(self, 'failed to handle, invalid head')
             return
         buf = self.request.recv(FLG_LEN)
         if len(buf) != FLG_LEN:
-            log_err('DPMRequestHandler', 'failed to handle, invalid head')
+            show_error(self, 'failed to handle, invalid head')
             return
         flg, = struct.unpack('I', buf)
         if flg == FLG_SEC:
             if not self.server.rpcserver.user:
-                log_err('DPMRequestHandler', 'user is not initialized')
+                show_error(self, 'user is not initialized')
                 raise Exception('user is not initialized')
             key = self.server.cache_get(uid)
             if not key:
                 key = self.server.rpcserver.user.get_private_key(uid)
                 if not key:
-                    log_err('DPMRequestHandler', 'failed to handle, invalid private key')
+                    show_error(self, 'failed to handle, invalid private key')
                     return
                 key = rsa.PrivateKey.load_pkcs1(key)
                 self.server.cache_update(uid, key)
@@ -68,7 +72,7 @@ class DPMRequestHandler(BaseRequestHandler):
                 stream = Stream(self.request)
             stream.write(res)
         if SHOW_TIME:
-            log_debug('DPMRequestHandler', 'handle, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+            self._print('handle, time=%d sec' % (datetime.utcnow() - start_time).seconds)
 
 class DPMTCPServer(ThreadingMixIn, TCPServer):
     def set_server(self, rpcserver):
