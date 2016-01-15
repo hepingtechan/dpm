@@ -205,7 +205,7 @@ def check_category(category):
     if CATEGORIES.has_key(category):
         return CATEGORIES.get(category)
 
-def show_class(cls, text):
+def show_info(cls, text):
     log_debug(cls.__class__.__name__, text)
     
 def show_error(cls, text):

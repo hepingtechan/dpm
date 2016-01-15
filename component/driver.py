@@ -18,7 +18,7 @@
 #      MA 02110-1301, USA.
 
 from hash_ring import HashRing
-from lib.util import show_class, show_error
+from lib.util import show_info, show_error
 from component.rpcclient import RPCClient
 from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS
 
@@ -27,7 +27,7 @@ PRINT = False
 class Driver(object):
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_repo(self, package):
         ring = HashRing(REPOSITORY_SERVERS)

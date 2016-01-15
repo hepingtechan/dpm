@@ -22,7 +22,7 @@ import shelve
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
 from conf.config import MONGO_PORT
-from lib.util import show_class, show_error
+from lib.util import show_info, show_error
 
 PRINT = False
 TABLE_VERSION = 'pkgversion'
@@ -38,7 +38,7 @@ class MongoDB(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_table(self, table):
         if self._domain:
@@ -159,7 +159,7 @@ class ShelveDB(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_path(self, table):
         return os.path.join(self._path, table)

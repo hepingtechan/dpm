@@ -21,7 +21,7 @@ import os
 import shutil
 import tempfile
 from ftplib import FTP
-from lib.util import get_filename, show_class
+from lib.util import get_filename, show_info
 
 PRINT = False
 ADMIN_NAME = 'admin'
@@ -33,7 +33,7 @@ class FTPClient():
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _generate_zip(self, path, package, version, buf):
         filename = get_filename(package, version)

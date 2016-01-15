@@ -26,7 +26,7 @@ from hash_ring import HashRing
 from lib.sandbox import Sandbox, OP_SCAN
 from component.rpcclient import RPCClient
 from component.rpcserver import RPCServer
-from lib.util import localhost, get_uid, check_category, show_class, show_error, APP
+from lib.util import localhost, get_uid, check_category, show_info, show_error, APP
 from conf.config import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, REPOSITORY_SERVERS, ALLOCATOR_SERVERS, RECORDER_SERVERS, SHOW_TIME, DEBUG
 
 PRINT = False
@@ -54,7 +54,7 @@ class Backend(RPCServer):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _load(self, buf):
         return json.loads(buf)

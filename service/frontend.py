@@ -22,7 +22,7 @@ import socket
 from random import randint
 from lib.stream import Stream
 from lib.stream import UID_LEN, HEAD_LEN
-from lib.util import localhost, show_class, show_error
+from lib.util import localhost, show_info, show_error
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS, PKG_MAX
 
@@ -36,7 +36,7 @@ class FrontendHandler(BaseRequestHandler):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _forward(self, uid, src, dest):
         self._print('start to forward, uid=%s' % str(uid))
@@ -54,22 +54,22 @@ class FrontendHandler(BaseRequestHandler):
         while cnt < total:
             head = src.recv(2)
             if len(head) != 2:
-                show_error(self,  'failed to forward, invalid packet')
+                show_error(self, 'failed to forward, invalid packet')
                 return
             dest.sendall(head)
             length, = struct.unpack('H', head)
             if length > BODY_MAX:
-                show_error(self,  'failed to forward, invalid length')
+                show_error(self, 'failed to forward, invalid length')
                 return
             body = ''
             while len(body) < length:
                 buf = src.recv(length - len(body))
                 if not buf:
-                    show_error(self,  'failed to forward')
+                    show_error(self, 'failed to forward')
                     return
                 body += buf
             if len(body) != length:
-                show_error(self,  'failed to forward')
+                show_error(self, 'failed to forward')
                 return
             dest.sendall(body)
             cnt += 1

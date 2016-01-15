@@ -24,7 +24,7 @@ from lib.util import get_uid
 from hash_ring import HashRing
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
-from lib.util import show_class, show_error
+from lib.util import show_info, show_error
 from conf.config import MONGO_PORT, DB_SERVERS, SHOW_TIME
 
 if SHOW_TIME:
@@ -45,7 +45,7 @@ class User(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_collection(self, uid, table):
         ring = HashRing([i for i in range(len(DB_SERVERS))])

@@ -22,7 +22,7 @@ from lib.bson import dumps, loads
 
 def pack(op, args, kwargs):
     if type(op) != str or type(args) != tuple or type(kwargs) != dict:
-        log_err('lib.package', 'failed to pack, invalid type')
+        log_err('package', 'failed to pack, invalid type')
         return
     buf = {'op': op, 'args': args, 'kwargs': kwargs}
     return dumps(buf)
@@ -30,12 +30,12 @@ def pack(op, args, kwargs):
 def unpack(buf):
     tmp = loads(buf)
     if type(tmp) != dict or not tmp.has_key('op') or not tmp.has_key('args') or not tmp.has_key('kwargs'):
-        log_err('lib.package', 'failed to unpack, invalid type')
+        log_err('package', 'failed to unpack, invalid type')
         return
     op = tmp['op']
     args = tmp['args']
     kwargs = tmp['kwargs']
     if type(op) != str or type(args) != list or type(kwargs) != dict:
-        log_err('lib.package', 'failed to unpack, invalid arguments')
+        log_err('package', 'failed to unpack, invalid arguments')
         return
     return (op, args, kwargs)

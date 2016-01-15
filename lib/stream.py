@@ -19,7 +19,7 @@
 
 import rsa
 import struct
-from log import log_err
+from lib.util import show_error
 
 FLG_LEN = 4
 UID_LEN = 32
@@ -36,7 +36,7 @@ class Stream(object):
     
     def write(self, buf):
         if len(self._uid) != UID_LEN:
-            log_err('Stream',  'invalid uid')
+            show_error(self, 'invalid uid')
             return
         if self._key:
             flg = FLG_SEC
@@ -74,7 +74,7 @@ class Stream(object):
     def read(self):
         head = self._recv(4)
         if len(head) != 4:
-            log_err('Stream', 'failed to receive head')
+            show_error(self, 'failed to receive head')
             return
         total, =  struct.unpack('I', head)
         cnt = 0
@@ -82,12 +82,12 @@ class Stream(object):
         while cnt < total:
             head = self._recv(2)
             if len(head) != 2:
-                log_err('Stream',  'failed to receive')
+                show_error(self, 'failed to receive')
                 return
             length, = struct.unpack('H', head)
             body = self._recv(length)
             if len(body) != length:
-                log_err('Stream',  'failed to receive body')
+                show_error(self, 'failed to receive body')
                 return
             if self._key:
                 res += rsa.decrypt(body, self._key)
@@ -100,11 +100,11 @@ class Stream(object):
     def readall(self):
         uid = self._recv(UID_LEN)
         if len(uid) != UID_LEN:
-            log_err('Stream',  'failed to receive uid')
+            show_error(self, 'failed to receive uid')
             return (None, None, '')
         buf = self._recv(FLG_LEN)
         if len(buf) != FLG_LEN:
-            log_err('Stream',  'failed to receive flag')
+            show_error(self, 'failed to receive flag')
             return (None, None, '')
         flg = struct.unpack('I', buf)[0]
         buf = self.read()

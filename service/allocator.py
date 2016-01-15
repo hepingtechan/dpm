@@ -21,7 +21,7 @@ import random
 from pymongo import MongoClient
 from component.rpcclient import RPCClient
 from component.rpcserver import RPCServer
-from lib.util import APP, localhost, show_class, show_error
+from lib.util import APP, localhost, show_info, show_error
 from conf.config import ALLOC_DB, MONGO_PORT, ALLOCATOR_PORT, DEBUG
 
 PRINT = False
@@ -46,7 +46,7 @@ class Allocator(RPCServer):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_collection(self, name):
         return self._client.test[name]

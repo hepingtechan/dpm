@@ -27,7 +27,7 @@ from hash_ring import HashRing
 from threading import Lock, Thread
 from recorder import RecorderServer
 from component.rpcclient import RPCClient
-from lib.util import localhost, APP, get_md5, get_uid, show_class, show_error
+from lib.util import localhost, APP, get_md5, get_uid, show_info, show_error
 from conf.config import BACKEND_PORT, BACKEND_SERVERS, MANAGER_PORTS, SHOW_TIME, DEBUG, MANAGER_WEBSOCKET
 
 if MANAGER_WEBSOCKET:
@@ -57,7 +57,7 @@ class Manager(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_user_backend(self, user):
         ring = HashRing(BACKEND_SERVERS)

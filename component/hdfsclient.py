@@ -19,7 +19,7 @@
 
 from hdfs.client import Client
 from conf.config import SHOW_TIME
-from lib.util import get_filename, show_class
+from lib.util import get_filename, show_info, show_error
 
 if SHOW_TIME:
     from datetime import datetime
@@ -33,7 +33,7 @@ class HDFSClient(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _get_client(self, addr, port):
         if not CACHE or not self._clients.has_key(addr):

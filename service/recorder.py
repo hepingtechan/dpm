@@ -22,7 +22,7 @@ from datetime import datetime
 from hash_ring import HashRing
 from pymongo import MongoClient
 from conf.category import CATEGORIES
-from lib.util import show_class, show_error
+from lib.util import show_info, show_error
 from component.rpcserver import RPCServer
 from conf.config import RECORDER_PORT, DB_SERVERS, MONGO_PORT, SHOW_TIME, DEBUG
 
@@ -64,7 +64,7 @@ class RecorderServer(object):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def get_collection(self, table, package=None, category=None):
         self._print('get_collection starts, table=%s, category=%s' % (str(table), str(category)))
@@ -220,7 +220,7 @@ class Recorder(RPCServer, RecorderServer):
     
     def _print(self, text):
         if PRINT:
-            show_class(self, text)
+            show_info(self, text)
     
     def _update_counter(self, category):
         self._print('update_counter->category=%s' % str(category))
