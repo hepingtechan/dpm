@@ -23,19 +23,19 @@ import socket
 import threading
 from lib.stream import Stream
 from conf.config import SHOW_TIME
-from lib.util import show_info, show_error
+from lib.log import show_info, show_error
+from conf.log import LOG_DPMSERVER
 from lib.stream import UID_LEN, FLG_LEN, FLG_SEC
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 
 if SHOW_TIME:
     from datetime import datetime
 
-PRINT = False
 CACHE_MAX = 4096
 
 class DPMRequestHandler(BaseRequestHandler):
     def _print(self, text):
-        if PRINT:
+        if LOG_DPMSERVER:
             show_info(self, text)
     
     def handle(self):

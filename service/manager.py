@@ -24,10 +24,12 @@ from random import randint
 from lib.stream import ANON
 from datetime import datetime
 from hash_ring import HashRing
+from lib.rpcclient import RPCClient
 from threading import Lock, Thread
 from recorder import RecorderServer
-from component.rpcclient import RPCClient
-from lib.util import localhost, APP, get_md5, get_uid, show_info, show_error
+from conf.log import LOG_MANAGER
+from lib.log import show_info, show_error
+from lib.util import localhost, APP, get_md5, get_uid
 from conf.config import BACKEND_PORT, BACKEND_SERVERS, MANAGER_PORTS, SHOW_TIME, DEBUG, MANAGER_WEBSOCKET
 
 if MANAGER_WEBSOCKET:
@@ -40,7 +42,6 @@ if MANAGER_WEBSOCKET:
 if SHOW_TIME:
     from datetime import datetime
 
-PRINT = False
 TOP = 4
 TOP_NAME = "top%d" % TOP
 INPUT_MAX = 1024
@@ -56,7 +57,7 @@ class Manager(object):
             self._uninstall_cnt = 0
     
     def _print(self, text):
-        if PRINT:
+        if LOG_MANAGER:
             show_info(self, text)
     
     def _get_user_backend(self, user):
@@ -109,7 +110,7 @@ class Manager(object):
         return self._recorder.get_categories()
        
     def get_description(self, package):
-        self._print('get_descripton starts' )
+        #self._print('get_descripton starts' )
         try:
             ret = self._recorder.get_description(package)
             if ret:

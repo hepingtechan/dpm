@@ -18,15 +18,14 @@
 #      MA 02110-1301, USA.
 
 from hash_ring import HashRing
-from lib.util import show_info, show_error
-from component.rpcclient import RPCClient
+from conf.log import LOG_DRIVER
+from lib.rpcclient import RPCClient
+from lib.log import show_info, show_error
 from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS
-
-PRINT = False
 
 class Driver(object):
     def _print(self, text):
-        if PRINT:
+        if LOG_DRIVER:
             show_info(self, text)
     
     def _get_repo(self, package):

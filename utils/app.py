@@ -25,13 +25,13 @@ import commands
 from threading import Lock
 from lib.db import Database
 from lib.zip import unzip_file
-from rpcclient import RPCClient
+from conf.log import LOG_APP
+from lib.rpcclient import RPCClient
 from hash_ring import HashRing
+from lib.util import APP, localhost
 from conf.path import PATH_INSTALLER
-from lib.util import APP, localhost, show_info, show_error
+from lib.log import show_info, show_error
 from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
-
-PRINT = False
 
 class App():
     def __init__(self):
@@ -42,7 +42,7 @@ class App():
             self._db = Database(addr=localhost(), domain=APP)
     
     def _print(self, text):
-        if PRINT:
+        if LOG_APP:
             show_info(self, text)
     
     def _get_repo(self, package):

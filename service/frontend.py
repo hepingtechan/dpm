@@ -20,13 +20,14 @@
 import struct
 import socket
 from random import randint
+from lib.util import localhost
 from lib.stream import Stream
+from conf.log import LOG_FRONTEND
+from lib.log import show_info, show_error
 from lib.stream import UID_LEN, HEAD_LEN
-from lib.util import localhost, show_info, show_error
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
 from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS, PKG_MAX
 
-PRINT = False
 BODY_MAX = 64
 
 class FrontendHandler(BaseRequestHandler):
@@ -35,7 +36,7 @@ class FrontendHandler(BaseRequestHandler):
         return BACKEND_SERVERS[n]
     
     def _print(self, text):
-        if PRINT:
+        if LOG_FRONTEND:
             show_info(self, text)
     
     def _forward(self, uid, src, dest):

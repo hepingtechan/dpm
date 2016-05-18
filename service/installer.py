@@ -17,12 +17,13 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
+from utils.app import App
+from utils.driver import Driver
 from threading import Thread
-from component.app import App
-from component.driver import Driver
+from lib.log import show_error
+from lib.rpcserver import RPCServer
+from lib.util import APP, DRIVER, localhost
 from conf.config import INSTALLER_PORT
-from component.rpcserver import RPCServer
-from lib.util import APP, DRIVER, localhost, show_error
 
 class Installer(RPCServer):
     def __init__(self, addr, port):

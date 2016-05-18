@@ -21,9 +21,10 @@ import os
 import shutil
 import tempfile
 from ftplib import FTP
-from lib.util import get_filename, show_info
+from lib.log import show_info
+from lib.util import get_filename
+from conf.log import LOG_FTPCLIENT
 
-PRINT = False
 ADMIN_NAME = 'admin'
 ADMIN_PASSWORD = 'adminpassword'
 
@@ -32,7 +33,7 @@ class FTPClient():
         self.ftp =  FTP()
     
     def _print(self, text):
-        if PRINT:
+        if LOG_FTPCLIENT:
             show_info(self, text)
     
     def _generate_zip(self, path, package, version, buf):

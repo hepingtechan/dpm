@@ -28,11 +28,11 @@ import hashlib
 import tempfile
 import commands
 from random import randint
+from lib.rpcclient import RPCClient
+from lib.zip import zip_dir, unzip_file
 from conf.path import PATH_DRIVER
-from lib.zip import zip_dir, unzip_file 
 from lib.log import log_err, log_debug
 from conf.category import CATEGORIES
-from component.rpcclient import RPCClient
 from conf.config import IFACE, FRONTEND_SERVERS, FRONTEND_PORT
 
 APP = 'app'
@@ -198,16 +198,8 @@ def _check_dep(path):
 
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
-    return ip
+    return socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
 
 def check_category(category):
     if CATEGORIES.has_key(category):
         return CATEGORIES.get(category)
-
-def show_info(cls, text):
-    log_debug(cls.__class__.__name__, text)
-    
-def show_error(cls, text):
-    log_err(cls.__class__.__name__, text)
-

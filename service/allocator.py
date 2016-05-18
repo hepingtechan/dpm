@@ -18,13 +18,14 @@
 #      MA 02110-1301, USA.
 
 import random
+from lib.util import APP, localhost
+from lib.rpcclient import RPCClient
+from lib.rpcserver import RPCServer
 from pymongo import MongoClient
-from component.rpcclient import RPCClient
-from component.rpcserver import RPCServer
-from lib.util import APP, localhost, show_info, show_error
+from conf.log import LOG_ALLOCATOR
+from lib.log import show_info, show_error
 from conf.config import ALLOC_DB, MONGO_PORT, ALLOCATOR_PORT, DEBUG
 
-PRINT = False
 CACHE_MAX = 4096
 INST_SEARCH_FACTOR = 4
 
@@ -45,7 +46,7 @@ class Allocator(RPCServer):
             self._alloc_cnt = 0
     
     def _print(self, text):
-        if PRINT:
+        if LOG_ALLOCATOR:
             show_info(self, text)
     
     def _get_collection(self, name):

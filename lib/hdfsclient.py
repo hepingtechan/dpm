@@ -18,13 +18,14 @@
 #      MA 02110-1301, USA.
 
 from hdfs.client import Client
+from lib.util import get_filename
 from conf.config import SHOW_TIME
-from lib.util import get_filename, show_info, show_error
+from conf.log import LOG_HDFSCLIENT
+from lib.log import  show_info, show_error
 
 if SHOW_TIME:
     from datetime import datetime
 
-PRINT = False
 CACHE = False
 
 class HDFSClient(object):
@@ -32,7 +33,7 @@ class HDFSClient(object):
         self._clients = {}
     
     def _print(self, text):
-        if PRINT:
+        if LOG_HDFSCLIENT:
             show_info(self, text)
     
     def _get_client(self, addr, port):

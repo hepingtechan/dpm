@@ -19,7 +19,7 @@
 
 import rsa
 import struct
-from lib.util import show_error
+from lib.log import show_error
 
 FLG_LEN = 4
 UID_LEN = 32

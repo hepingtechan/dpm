@@ -22,15 +22,15 @@ import rsa
 import uuid
 from lib.util import get_uid
 from hash_ring import HashRing
+from conf.log import LOG_USER
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
-from lib.util import show_info, show_error
+from lib.log import show_info, show_error
 from conf.config import MONGO_PORT, DB_SERVERS, SHOW_TIME
 
 if SHOW_TIME:
     from datetime import datetime
 
-PRINT = False
 RETRY_MAX = 3
 CACHE_MAX = 4096
 TABLE_USERINFO = 'userdb'
@@ -44,7 +44,7 @@ class User(object):
             self._clients.append(MongoClient(i, MONGO_PORT).test) 
     
     def _print(self, text):
-        if PRINT:
+        if LOG_USER:
             show_info(self, text)
     
     def _get_collection(self, uid, table):

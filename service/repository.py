@@ -21,10 +21,12 @@ import os
 import time
 from threading import Lock
 from lib.db import Database
+from lib.util import localhost
 from threading import Thread
 from hash_ring import HashRing
-from component.rpcserver import RPCServer
-from lib.util import localhost, show_info, show_error
+from lib.rpcserver import RPCServer
+from conf.log import LOG_REPOSITORY
+from lib.log import show_info, show_error
 from conf.config import REPOSITORY_PORT, REPO_DB, UPLOAD_SERVERS, SHOW_TIME, DEBUG, HDFS, REPOSITORY_SERVERS
 
 if SHOW_TIME:
@@ -32,18 +34,17 @@ if SHOW_TIME:
 
 if HDFS:
     from conf.config import HDFS_PORT
-    from component.hdfsclient import HDFSClient
+    from lib.hdfsclient import HDFSClient
 else:
     from conf.config import FTP_PORT
-    from component.ftpclient import FTPClient
-    from component.ftpserver import FTPServer
+    from lib.ftpclient import FTPClient
+    from lib.ftpserver import FTPServer
 
-PRINT = False
 LOCK_MAX = 1024
 
 class Repository(RPCServer):
     def _print(self, text):
-        if PRINT:
+        if LOG_REPOSITORY:
             show_info(self, text)
     
     def __init__(self, addr, port):

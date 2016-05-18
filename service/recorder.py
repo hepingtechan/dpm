@@ -20,10 +20,11 @@
 from lib.util import localhost
 from datetime import datetime
 from hash_ring import HashRing
+from lib.rpcserver import RPCServer
 from pymongo import MongoClient
 from conf.category import CATEGORIES
-from lib.util import show_info, show_error
-from component.rpcserver import RPCServer
+from conf.log import LOG_RECORDER
+from lib.log import show_info, show_error
 from conf.config import RECORDER_PORT, DB_SERVERS, MONGO_PORT, SHOW_TIME, DEBUG
 
 PAGE_SIZE = 8
@@ -39,8 +40,6 @@ TOP_NAME = "top%d" % TOP
 
 if SHOW_TIME:
     from datetime import datetime
-
-PRINT = False
 
 class RecorderServer(object):
     def _get_table(self, srv, table):
@@ -63,7 +62,7 @@ class RecorderServer(object):
             self._upload_cnt = 0
     
     def _print(self, text):
-        if PRINT:
+        if LOG_RECORDER:
             show_info(self, text)
     
     def get_collection(self, table, package=None, category=None):
@@ -97,14 +96,14 @@ class RecorderServer(object):
         try:
             category = self._get_category(package)
             if not category:
-                self._print('get_description, cannot find category, package=%s' % str(package))
+                show_error(self, 'get_description, cannot find category, package=%s' % str(package))
                 return
             coll = self.get_collection(TABLE_DESCRIPTION, category=category)
             res = coll.find_one({'pkg':package}, {'title':1, 'des':1, '_id':0})
             if res:
                 return (str(res['title']), str(res['des']))
             else:
-                self._print('get_description, cannot find description, package=%s' % str(package))
+                show_error(self, 'get_description, cannot find description, package=%s' % str(package))
         except:
              show_error(self, 'get_description failed')
     
@@ -113,7 +112,7 @@ class RecorderServer(object):
         try:
             category = self._get_category(package)
             if not category:
-                self._print('get_inst, cannot find category, package=%s' % str(package))
+                show_error(self, 'get_inst, cannot find category, package=%s' % str(package))
                 return
             coll = self.get_collection(TABLE_DESCRIPTION, category=category)
             res = coll.find_one({'pkg':package}, {'inst':1, '_id':0})
@@ -139,7 +138,7 @@ class RecorderServer(object):
         try:
             category = self._get_category(package)
             if not category:
-                self._print('get_package_detail, cannot find category, package=%s' % str(package))
+                show_error(self, 'get_package_detail, cannot find category, package=%s' % str(package))
                 return
             coll = self.get_collection(TABLE_DESCRIPTION, category=category)
             res = coll.find_one({'pkg':package}, {'inst':1, 'title':1, '_id':0})
@@ -219,7 +218,7 @@ class Recorder(RPCServer, RecorderServer):
         RecorderServer.__init__(self)
     
     def _print(self, text):
-        if PRINT:
+        if LOG_RECORDER:
             show_info(self, text)
     
     def _update_counter(self, category):
@@ -244,16 +243,13 @@ class Recorder(RPCServer, RecorderServer):
                 return
             coll = self.get_collection(TABLE_CATEGORY, package=package)
             coll.update({'pkg':package}, {'cat':category, 'pkg':package}, upsert=True)
-            
             t = str(datetime.utcnow())
             cnt = self._update_counter(category)
             rank = cnt / PAGE_SIZE
             coll = self.get_collection(TABLE_DESCRIPTION, category=category)
             coll.update({'pkg':package}, {'rank':rank, 'pkg':package,'title':title, 'des':description, 'inst':0, 't':t}, upsert=True)
-            
             coll = self.get_collection(TABLE_AUTHOR, package=package)
             coll.update({'uid':uid}, {'$set':{'pkg':package}}, upsert=True)
-            
             if SHOW_TIME:
                 self._print('upload, time=%d sec' % (datetime.utcnow() - start_time).seconds)
             if DEBUG:

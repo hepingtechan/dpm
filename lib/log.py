@@ -26,3 +26,9 @@ def log_err(location, text):
 def log_debug(location, text):
     if LOG_DEBUG:
         print('%s: %s' % (location, text))
+
+def show_info(cls, text):
+    log_debug(cls.__class__.__name__, text)
+    
+def show_error(cls, text):
+    log_err(cls.__class__.__name__, text)

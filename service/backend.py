@@ -23,13 +23,14 @@ import uuid
 from lib.user import User
 from threading import Lock
 from hash_ring import HashRing
+from lib.rpcclient import RPCClient
+from lib.rpcserver import RPCServer
+from conf.log import LOG_BACKEND
+from lib.log import show_info, show_error
 from lib.sandbox import Sandbox, OP_SCAN
-from component.rpcclient import RPCClient
-from component.rpcserver import RPCServer
-from lib.util import localhost, get_uid, check_category, show_info, show_error, APP
+from lib.util import localhost, get_uid, check_category, APP
 from conf.config import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, REPOSITORY_SERVERS, ALLOCATOR_SERVERS, RECORDER_SERVERS, SHOW_TIME, DEBUG
 
-PRINT = False
 LOCK_MAX = 1024
 CACHE_MAX = 4096
 
@@ -53,7 +54,7 @@ class Backend(RPCServer):
             self._uninstall_cnt = 0
     
     def _print(self, text):
-        if PRINT:
+        if LOG_BACKEND:
             show_info(self, text)
     
     def _load(self, buf):

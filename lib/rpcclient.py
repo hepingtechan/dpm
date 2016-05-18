@@ -1,4 +1,4 @@
-#      rpcserver.py
+#      rpcclient.py
 #      
 #      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
 #      
@@ -17,35 +17,19 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-from lib.user import User
-from lib.bson import dumps
-from lib.package import unpack
-from dpmserver import DPMServer
-from lib.util import show_error
+from lib.bson import loads
+from lib.package import pack
+from dpmclient import DPMClient
 
-class RPCServer(object):   
-    def __init__(self, addr, port, user=None):
-        self.dpmserver = DPMServer()
+class RPCClient():
+    def __init__(self, addr, port, uid=None, key=None):
+        self.dpmclient = DPMClient(uid, key)
         self.addr = addr
         self.port = port
-        self.user = user
-    
-    def run(self):
-        self.dpmserver.run(self)
-    
-    def __proc(self, op, args, kwargs):
-        res = ''
-        func = getattr(self, op)
-        if func:
-            ret = func(*args, **kwargs)
-            if ret:
-                res = ret
-        return dumps({'res':res})
-    
-    def proc(self, buf):
-        try:
-            op, args, kwargs = unpack(buf)
-            return self.__proc(op, args, kwargs)
-        except:
-           show_error(self, 'failed to process')
-    
+        
+    def request(self, op, *args, **kwargs):
+        buf = pack(op, args, kwargs)
+        res = self.dpmclient.request(self.addr, self.port, buf)
+        if res:
+            ret = loads(res)
+            return ret['res']

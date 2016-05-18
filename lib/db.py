@@ -19,12 +19,12 @@
 
 import os
 import shelve
+from conf.log import LOG_DB
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
 from conf.config import MONGO_PORT
-from lib.util import show_info, show_error
+from lib.log import show_info, show_error
 
-PRINT = False
 TABLE_VERSION = 'pkgversion'
 TABLE_PACKAGE = 'pkgcontent'
 
@@ -37,7 +37,7 @@ class MongoDB(object):
         self._addr = addr
     
     def _print(self, text):
-        if PRINT:
+        if LOG_DB:
             show_info(self, text)
     
     def _get_table(self, table):
@@ -158,7 +158,7 @@ class ShelveDB(object):
             os.makedirs(self._path, 0o755)
     
     def _print(self, text):
-        if PRINT:
+        if LOG_DB:
             show_info(self, text)
     
     def _get_path(self, table):
