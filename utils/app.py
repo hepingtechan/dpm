@@ -31,13 +31,14 @@ from hash_ring import HashRing
 from lib.util import APP, localhost
 from conf.path import PATH_INSTALLER
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS, APP_DB
+from conf.config import REPOSITORY_PORT
+from conf.servers import SERVER_REPO, SERVER_APPDB
 
 class App():
     def __init__(self):
         self._lock = Lock()
-        if APP_DB:
-            self._db = Database(addr=APP_DB, domain=APP)
+        if SERVER_APPDB:
+            self._db = Database(addr=SERVER_APPDB[0], domain=APP)
         else:
             self._db = Database(addr=localhost(), domain=APP)
     
@@ -46,7 +47,7 @@ class App():
             show_info(self, text)
     
     def _get_repo(self, package):
-        ring = HashRing(REPOSITORY_SERVERS)
+        ring = HashRing(SERVER_REPO)
         server = ring.get_node(package)
         return server
     

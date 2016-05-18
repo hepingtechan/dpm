@@ -25,7 +25,8 @@ from pymongo import MongoClient
 from conf.category import CATEGORIES
 from conf.log import LOG_RECORDER
 from lib.log import show_info, show_error
-from conf.config import RECORDER_PORT, DB_SERVERS, MONGO_PORT, SHOW_TIME, DEBUG
+from conf.servers import SERVER_DATABASE
+from conf.config import RECORDER_PORT, MONGO_PORT, SHOW_TIME, DEBUG
 
 PAGE_SIZE = 8
 
@@ -46,14 +47,14 @@ class RecorderServer(object):
         return srv + '_' + table
     
     def __init__(self):
-        self._ring = HashRing(DB_SERVERS)
+        self._ring = HashRing(SERVER_DATABASE)
         self._cat_coll = {}
         cnt = 0
         for i in CATEGORIES:
-            self._cat_coll.update({CATEGORIES[i]:MongoClient(DB_SERVERS[cnt], MONGO_PORT).test})
+            self._cat_coll.update({CATEGORIES[i]:MongoClient(SERVER_DATABASE[cnt], MONGO_PORT).test})
             cnt += 1
         self._coll = {}
-        for i in DB_SERVERS:
+        for i in SERVER_DATABASE:
             name = self._get_table(i, TABLE_AUTHOR)
             self._coll.update({name:MongoClient(i, MONGO_PORT).test[TABLE_AUTHOR]})
             name = self._get_table(i, TABLE_CATEGORY)

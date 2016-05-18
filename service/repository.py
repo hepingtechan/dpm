@@ -27,7 +27,8 @@ from hash_ring import HashRing
 from lib.rpcserver import RPCServer
 from conf.log import LOG_REPOSITORY
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT, REPO_DB, UPLOAD_SERVERS, SHOW_TIME, DEBUG, HDFS, REPOSITORY_SERVERS
+from conf.config import REPOSITORY_PORT, SHOW_TIME, DEBUG, HDFS
+from conf.servers import  SERVER_REPODB, SERVER_UPLOADER, SERVER_REPO
 
 if SHOW_TIME:
     from datetime import datetime
@@ -49,20 +50,20 @@ class Repository(RPCServer):
     
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
-        len_up = len(UPLOAD_SERVERS)
-        len_repo = len(REPOSITORY_SERVERS)
+        len_up = len(SERVER_UPLOADER)
+        len_repo = len(SERVER_REPO)
         if len_up < len_repo or len_up % len_repo != 0:
             show_error(self, 'failed to initialize')
             raise Exception('failed to initialize')
         addr = localhost()
-        if addr not in REPOSITORY_SERVERS:
+        if addr not in SERVER_REPO:
             show_error(self, 'failed to initialize')
-            raise Exception('failed to initialize REPOSITORY_SERVERS')
-        for i in range(len(REPOSITORY_SERVERS)):
-            if  addr == REPOSITORY_SERVERS[i]:
+            raise Exception('failed to initialize ')
+        for i in range(len(SERVER_REPO)):
+            if  addr == SERVER_REPO[i]:
                 break
         total = len_up / len_repo 
-        self._upload_servers = UPLOAD_SERVERS[i * total:(i + 1) * total]
+        self._upload_servers = SERVER_UPLOADER[i * total:(i + 1) * total]
         self._print('upload_servers=%s' % str(self._upload_servers))
         if HDFS:
             self._port = HDFS_PORT
@@ -71,8 +72,8 @@ class Repository(RPCServer):
             self._port = FTP_PORT
             self._client = FTPClient()
             self._server = FTPServer()
-        if REPO_DB:
-            self._db = Database(addr=REPO_DB)
+        if SERVER_REPODB:
+            self._db = Database(addr=SERVER_REPODB[0])
         else:
             self._db = Database(addr=addr)
         locks = []

@@ -24,7 +24,8 @@ from lib.rpcserver import RPCServer
 from pymongo import MongoClient
 from conf.log import LOG_ALLOCATOR
 from lib.log import show_info, show_error
-from conf.config import ALLOC_DB, MONGO_PORT, ALLOCATOR_PORT, DEBUG
+from conf.servers import SERVER_ALLOCDB
+from conf.config import MONGO_PORT, ALLOCATOR_PORT, DEBUG
 
 CACHE_MAX = 4096
 INST_SEARCH_FACTOR = 4
@@ -38,8 +39,8 @@ class Allocator(RPCServer):
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
         self._cache = {}
-        if ALLOC_DB:
-            self._client =  MongoClient(ALLOC_DB, MONGO_PORT)
+        if SERVER_ALLOCDB:
+            self._client =  MongoClient(SERVER_ALLOCDB[0], MONGO_PORT)
         else:
             self._client =  MongoClient(localhost(), MONGO_PORT)
         if DEBUG:

@@ -33,7 +33,8 @@ from lib.zip import zip_dir, unzip_file
 from conf.path import PATH_DRIVER
 from lib.log import log_err, log_debug
 from conf.category import CATEGORIES
-from conf.config import IFACE, FRONTEND_SERVERS, FRONTEND_PORT
+from conf.servers import SERVER_FRONTEND
+from conf.config import IFACE, FRONTEND_PORT
 
 APP = 'app'
 DRIVER = 'driver'
@@ -42,8 +43,8 @@ def get_filename(package, version):
     return '%s-%s.zip' % (package, version)
 
 def _get_frontend():
-    n = randint(0, len(FRONTEND_SERVERS) - 1)
-    return FRONTEND_SERVERS[n]
+    n = randint(0, len(SERVER_FRONTEND) - 1)
+    return SERVER_FRONTEND[n]
     
 def get_md5(text):
     if type(text) == str or type(text) == unicode:
@@ -198,7 +199,9 @@ def _check_dep(path):
 
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
+    ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
+    print '@@@@@@util->loaclhost', ip
+    return ip
 
 def check_category(category):
     if CATEGORIES.has_key(category):

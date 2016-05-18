@@ -25,15 +25,16 @@ from lib.stream import Stream
 from conf.log import LOG_FRONTEND
 from lib.log import show_info, show_error
 from lib.stream import UID_LEN, HEAD_LEN
+from conf.servers import SERVER_BACKEND
+from conf.config import FRONTEND_PORT, BACKEND_PORT, PKG_MAX
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
-from conf.config import FRONTEND_PORT, BACKEND_PORT, BACKEND_SERVERS, PKG_MAX
 
 BODY_MAX = 64
 
 class FrontendHandler(BaseRequestHandler):
     def _get_backend(self, uid):
-        n = randint(0, len(BACKEND_SERVERS) - 1)
-        return BACKEND_SERVERS[n]
+        n = randint(0, len(SERVER_BACKEND) - 1)
+        return SERVER_BACKEND[n]
     
     def _print(self, text):
         if LOG_FRONTEND:

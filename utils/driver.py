@@ -20,8 +20,9 @@
 from hash_ring import HashRing
 from conf.log import LOG_DRIVER
 from lib.rpcclient import RPCClient
+from conf.servers import SERVER_REPO
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT, REPOSITORY_SERVERS
+from conf.config import REPOSITORY_PORT
 
 class Driver(object):
     def _print(self, text):
@@ -29,7 +30,7 @@ class Driver(object):
             show_info(self, text)
     
     def _get_repo(self, package):
-        ring = HashRing(REPOSITORY_SERVERS)
+        ring = HashRing(SERVER_REPO)
         server = ring.get_node(package)
         return server
     

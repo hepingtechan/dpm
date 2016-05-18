@@ -29,8 +29,9 @@ from threading import Lock, Thread
 from recorder import RecorderServer
 from conf.log import LOG_MANAGER
 from lib.log import show_info, show_error
+from conf.servers import SERVER_BACKEND
 from lib.util import localhost, APP, get_md5, get_uid
-from conf.config import BACKEND_PORT, BACKEND_SERVERS, MANAGER_PORTS, SHOW_TIME, DEBUG, MANAGER_WEBSOCKET
+from conf.config import BACKEND_PORT, MANAGER_PORTS, SHOW_TIME, DEBUG, MANAGER_WEBSOCKET
 
 if MANAGER_WEBSOCKET:
     import tornado.ioloop
@@ -61,14 +62,14 @@ class Manager(object):
             show_info(self, text)
     
     def _get_user_backend(self, user):
-        ring = HashRing(BACKEND_SERVERS)
+        ring = HashRing(SERVER_BACKEND)
         uid = get_uid(user)
         server = ring.get_node(uid)
         return server
     
     def _get_backend(self):
-        n = randint(0, len(BACKEND_SERVERS) - 1)
-        server =  BACKEND_SERVERS[n]
+        n = randint(0, len(SERVER_BACKEND) - 1)
+        server =  SERVER_BACKEND[n]
         return server
     
     def install(self, uid, package, version, typ):
@@ -110,7 +111,7 @@ class Manager(object):
         return self._recorder.get_categories()
        
     def get_description(self, package):
-        #self._print('get_descripton starts' )
+        self._print('get_descripton starts' )
         try:
             ret = self._recorder.get_description(package)
             if ret:

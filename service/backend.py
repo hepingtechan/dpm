@@ -29,7 +29,8 @@ from conf.log import LOG_BACKEND
 from lib.log import show_info, show_error
 from lib.sandbox import Sandbox, OP_SCAN
 from lib.util import localhost, get_uid, check_category, APP
-from conf.config import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, REPOSITORY_SERVERS, ALLOCATOR_SERVERS, RECORDER_SERVERS, SHOW_TIME, DEBUG
+from conf.servers import SERVER_REPO, SERVER_ALLOC, SERVER_RECORDER
+from conf.config import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, SHOW_TIME, DEBUG
 
 LOCK_MAX = 1024
 CACHE_MAX = 4096
@@ -65,17 +66,17 @@ class Backend(RPCServer):
         return self._locks.get_node(uid)
     
     def _get_allocator(self, uid):
-        ring = HashRing(ALLOCATOR_SERVERS)
+        ring = HashRing(SERVER_ALLOC)
         server = ring.get_node(uid)
         return server
     
     def _get_repo(self, package):
-        ring = HashRing(REPOSITORY_SERVERS)
+        ring = HashRing(SERVER_REPO)
         server = ring.get_node(package)
         return server
     
     def _get_recorder(self, package):
-        ring = HashRing(RECORDER_SERVERS)
+        ring = HashRing(SERVER_RECORDER)
         server = ring.get_node(package)
         return server
     

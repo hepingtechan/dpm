@@ -26,7 +26,8 @@ from conf.log import LOG_USER
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
 from lib.log import show_info, show_error
-from conf.config import MONGO_PORT, DB_SERVERS, SHOW_TIME
+from conf.servers import SERVER_DATABASE
+from conf.config import MONGO_PORT, SHOW_TIME
 
 if SHOW_TIME:
     from datetime import datetime
@@ -40,7 +41,7 @@ class User(object):
         self._clients = []
         self._private_keys = {}
         self._public_keys = {}
-        for i in DB_SERVERS:
+        for i in SERVER_DATABASE:
             self._clients.append(MongoClient(i, MONGO_PORT).test) 
     
     def _print(self, text):
@@ -48,7 +49,7 @@ class User(object):
             show_info(self, text)
     
     def _get_collection(self, uid, table):
-        ring = HashRing([i for i in range(len(DB_SERVERS))])
+        ring = HashRing([i for i in range(len(SERVER_DATABASE))])
         cli = self._clients[ring.get_node(uid)]
         return cli[table]
     
