@@ -18,4 +18,4 @@ FTP_PORT = 21
 
 PKG_MAX = 65536 # Bytes
 MANAGER_PORTS = [10001]
-IFACE = 'eth0'
+IFACE = 'lo'

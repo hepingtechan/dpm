@@ -199,9 +199,7 @@ def _check_dep(path):
 
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
-    print '@@@@@@util->loaclhost', ip
-    return ip
+    return socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
 
 def check_category(category):
     if CATEGORIES.has_key(category):

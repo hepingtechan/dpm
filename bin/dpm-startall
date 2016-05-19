@@ -1,0 +1,39 @@
+#!/usr/bin/python
+
+import os
+import sys
+import resource
+import commands
+from threading import Thread
+
+_name = commands.getoutput('readlink -f %s' % sys.argv[0])
+_path = os.path.dirname(_name)
+_dir = os.path.dirname(_path)
+sys.path.append(_dir)
+
+def create_servers(): 
+     from service import frontend
+     Thread(target=frontend.main).start()
+     
+     from service import backend
+     Thread(target=backend.main).start()
+     
+     from service import manager
+     Thread(target=manager.main).start()
+     
+     from service import repository
+     Thread(target=repository.main).start()
+     
+     from service import installer
+     Thread(target=installer.main).start()
+     
+     from service import allocator
+     Thread(target=allocator.main).start()
+     
+     from service import recorder
+     recorder.main()
+
+if __name__ == '__main__':
+    max_open_files_soft, max_open_files_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, max_open_files_hard))
+    create_servers()

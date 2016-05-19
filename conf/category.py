@@ -1,1 +1,1 @@
-CATEGORIES =  {'cat1':'1', 'cat2':'2', 'cat3':'3', 'cat4':'4', 'cat5':'5'}
+CATEGORIES =  {'cat0':'0'}
