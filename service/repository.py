@@ -118,7 +118,7 @@ class Repository(RPCServer):
                 self._db.set_package(uid, package, version, '')
                 if not ver or ver < version:
                     self._db.set_version(uid, package, version)
-                #self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
+                self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
                 if DEBUG:
                     self._upload_cnt += 1
                     self._print('upload, count=%d' % self._upload_cnt)

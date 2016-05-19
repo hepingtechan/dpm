@@ -59,10 +59,13 @@ class App():
                 f.write(buf)
             dest = os.path.join(dirname, 'app')
             unzip_file(src, dest)
-            cmd = 'python %s %s' % (PATH_INSTALLER, dest)
-            status, output = commands.getstatusoutput(cmd)
-            if status ==  0:
-                return output
+            if PATH_INSTALLER:
+                cmd = '%s %s' % (PATH_INSTALLER, dest)
+                status, output = commands.getstatusoutput(cmd)
+                if status ==  0:
+                    return output
+            else:
+                return str(None)
         finally:
             shutil.rmtree(dirname)
     

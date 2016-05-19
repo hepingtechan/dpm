@@ -11,29 +11,61 @@ _path = os.path.dirname(_name)
 _dir = os.path.dirname(_path)
 sys.path.append(_dir)
 
-def create_servers(): 
-     from service import frontend
-     Thread(target=frontend.main).start()
+from conf.path import PATH_DRIVER, PATH_ADMIN, PATH_REPO, PATH_SHELVEDB
+from conf.config import FRONTEND, BACKEND, MANAGER, REPOSITORY, INSTALLER, ALLOCATOR, RECORDER
+
+def create_paths():
+    if not os.path.exists(PATH_DRIVER):
+        os.makedirs(PATH_DRIVER, 0o755)
+    
+    dirname = os.path.dirname(PATH_ADMIN)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, 0o755)
+    
+    if not os.path.exists(PATH_REPO):
+        os.makedirs(PATH_REPO, 0o755)
+    
+    if not os.path.exists(PATH_SHELVEDB):
+        os.makedirs(PATH_SHELVEDB, 0o755)
+
+def create_servers():
+    targets = []
+    if FRONTEND:
+        from service import frontend
+        targets.append(frontend.main)
+    
+    if BACKEND:
+        from service import backend
+        targets.append(backend.main)
      
-     from service import backend
-     Thread(target=backend.main).start()
-     
-     from service import manager
-     Thread(target=manager.main).start()
-     
-     from service import repository
-     Thread(target=repository.main).start()
-     
-     from service import installer
-     Thread(target=installer.main).start()
-     
-     from service import allocator
-     Thread(target=allocator.main).start()
-     
-     from service import recorder
-     recorder.main()
+    if MANAGER:
+        from service import manager
+        targets.append(manager.main)
+    
+    if MANAGER:
+        from service import repository
+        targets.append(repository.main)
+    
+    if INSTALLER:
+        from service import installer
+        targets.append(installer.main)
+    
+    if ALLOCATOR:
+        from service import allocator
+        targets.append(allocator.main)
+    
+    if RECORDER:
+        from service import recorder
+        targets.append(recorder.main)
+    
+    n = len(targets) - 1
+    for i in range(n):
+        Thread(target=targets[i]).start()
+    
+    targets[n]()
 
 if __name__ == '__main__':
     max_open_files_soft, max_open_files_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, max_open_files_hard))
+    create_paths()
     create_servers()
