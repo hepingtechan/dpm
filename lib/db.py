@@ -22,8 +22,8 @@ import shelve
 from conf.log import LOG_DB
 from pymongo import MongoClient
 from conf.path import PATH_SHELVEDB
-from conf.config import MONGO_PORT
 from lib.log import show_info, show_error
+from conf.mongodb import MONGO_PORT
 
 TABLE_VERSION = 'pkgversion'
 TABLE_PACKAGE = 'pkgcontent'
@@ -82,7 +82,7 @@ class MongoDB(object):
     def has_package(self, uid, package, version, table):
         self._print('has_package->uid=%s, version=%s, package=%s' % (str(uid), str(version), str(package)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid}, {'_id':0})
+        res = coll.find_one({'uid': uid}, {'_id': 0})
         if res and res.has_key('package'):
             if res['package'].has_key(package):
                 if version:
@@ -96,7 +96,7 @@ class MongoDB(object):
     def get_package(self, uid, package, version, table):
         self._print('get_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid}, {'_id':0})
+        res = coll.find_one({'uid': uid}, {'_id': 0})
         if res and res.has_key('package'):
             if res['package'].has_key(package):
                 versions = res['package'][package]
@@ -117,7 +117,7 @@ class MongoDB(object):
     def set_package(self, uid, package, version, output, table):
         self._print('set_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid}, {'uid':0, '_id':0})
+        res = coll.find_one({'uid': uid}, {'uid': 0, '_id': 0})
         if res and res.has_key('package') and  res['package'].has_key(package):
             versions = res['package'][package]
             for item in versions:
@@ -134,7 +134,7 @@ class MongoDB(object):
     def rm_package(self, uid, package, version, table):
         self._print('rm_package->uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid}, {'uid':0, '_id':0})
+        res = coll.find_one({'uid': uid}, {'uid': 0, '_id': 0})
         if res and res.has_key('package') and res['package'].has_key(package):
             coll.update({'uid':uid}, {'$pull':{'package.%s' % package:{'version':version}}}, upsert=True)
             if 1 == len(res['package'][package]):
@@ -143,7 +143,7 @@ class MongoDB(object):
     def get_packages(self, uid, table):
         self._print('get_packages->uid=%s' % str(uid))
         coll = self._get_collection(table)
-        res = coll.find_one({'uid': uid}, {'_id':0})
+        res = coll.find_one({'uid': uid}, {'_id': 0})
         if res and res.has_key('package'):
             return res['package'].keys()
         

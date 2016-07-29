@@ -1,6 +1,6 @@
 #      util.py
 #      
-#      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
+#      Copyright (C) 2015 Xu Tian <tianxu@iscas.ac.cn>
 #      
 #      This program is free software; you can redistribute it and/or modify
 #      it under the terms of the GNU General Public License as published by
@@ -18,8 +18,11 @@
 #      MA 02110-1301, USA.
 
 import os
+import zlib
+import json
 import uuid
 import fcntl
+import yaml
 import struct
 import socket
 import types
@@ -28,19 +31,21 @@ import hashlib
 import tempfile
 import commands
 from random import randint
+from conf.config import IFACE
 from lib.rpcclient import RPCClient
-from lib.zip import zip_dir, unzip_file
 from conf.path import PATH_DRIVER
 from lib.log import log_err, log_debug
 from conf.category import CATEGORIES
-from conf.servers import SERVER_FRONTEND
-from conf.config import IFACE, FRONTEND_PORT
+from conf.servers import SERVER_FRONTEND, FRONTEND_PORT
 
 APP = 'app'
 DRIVER = 'driver'
+APT = 'apt-get'
+PIP = 'pip'
+INSTALLERS = [APT, PIP]
 
 def get_filename(package, version):
-    return '%s-%s.zip' % (package, version)
+    return '%s-%s' % (package, version)
 
 def _get_frontend():
     n = randint(0, len(SERVER_FRONTEND) - 1)
@@ -65,64 +70,99 @@ def login(user, password):
     uid, key = rpcclient.request('login', user=user, pwd=pwd)
     return (str(uid), str(key))
 
-def upload(path, uid, package, version, typ, key):
-    zipfilename = get_filename (package, version)
-    zipfilepath = os.path.join('/tmp', zipfilename)
-    zip_dir(path, zipfilepath)
-    with open(zipfilepath) as f:
-        buf = f.read()
-    os.remove(zipfilepath)
+def dump_content(dirname, has_children=True):
+    content = {}
+    print '@@util 2-0'
+    for name in os.listdir(dirname):
+        print '@@util 2-1'
+        path = os.path.join(dirname, name)
+        if os.path.isdir(path):
+            if name not in [APP, DRIVER]:
+                raise Exception('failed to dump content')
+            if has_children:
+                res = dump_content(path, has_children=False)
+                if res:
+                    content.update({name: res})
+            else:
+                raise Exception('failed to dump content')
+        else:
+            with open(path) as f:
+                buf = f.read()
+            if name == 'description':
+                buf = buf.replace('\n', ',')[:-1]
+                res = buf.split(',')
+                buf = {}
+                for i in res:
+                    info = i.split(':')
+                    buf.update({info[0]: info[1][1:]})
+                buf = yaml.dump(buf)
+            content.update({name:buf})
+    return content
+
+def upload_package(buf, uid, package, version, typ, key):
     addr = _get_frontend()
+    print '@@util 1-3'
     rpcclient = RPCClient(addr, FRONTEND_PORT, uid, key)
+    print '@@util 1-4'
     ret = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf, typ=typ)
+    print '@@util 1-5'
     if ret:
         return True
     else:
         log_err('util', 'failed to upload, uid=%s, package=%s, version=%s, typ=%s' % (str(uid), str(package), str(version), str(typ)))
         return False
-    
-def upload_driver(path, uid, driver, version, key):
-    return upload(path, uid, driver, version, DRIVER, key)
 
-def upload_app(path, uid, app, version, key):
-    return upload(path, uid, app, version, APP, key)
+def upload(path, uid, package, version, typ, key):
+    if os.path.isdir(path):
+        content = dump_content(path)
+        buf = zlib.compress(json.dumps(content))
+        upload_package(buf, uid, package, version, typ, key)
+
+def upload_driver(path, uid, package, version, key):
+    return upload(path, uid, package, version, DRIVER, key)
+
+def upload_app(path, uid, package, version, key):
+    return upload(path, uid, package, version, APP, key)
 
 def install(uid, package, version, typ):
     addr = _get_frontend()
     rpcclient = RPCClient(addr, FRONTEND_PORT)
-    ret = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
+    if typ == DRIVER:
+        content = None
+    ret = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ, content=content)
     if not ret:
         log_err('util', 'failed to install, uid=%s, package=%s, version=%s, typ=%s' % (str(uid), str(package), str(version), str(typ)))
         return
     return ret
 
-def install_driver(uid, driver, version=None):
+def install_driver(uid, package, version=None):
     driver_path = os.path.join(PATH_DRIVER, driver)
     if os.path.exists(driver_path):
         shutil.rmtree(driver_path)
-    ret = install(uid, driver, version, DRIVER)
+    ret = install(uid, package, version, DRIVER)
     if not ret:
         log_err('util', 'failed to install driver, uid=%s, driver=%s, version=%s' % (str(uid), str(driver), str(version)))
         return False
     dirname = tempfile.mkdtemp()
     try:
-        src = os.path.join(dirname, driver) + '.zip'
-        with open(src, 'wb') as f:
-            f.write(ret)
-        dest = os.path.join(dirname, driver)
-        unzip_file(src, dest)
-        dep_path = os.path.join(dest, 'dep')
-        if not _check_dep(dep_path):
+        buf = json.loads(zlib.decompress(ret))
+        dep = buf['dep']
+        if not _check_dep(dep):
             log_err('util', 'failed to install driver, invalid dependency, uid=%s, driver=%s, version=%s' % (str(uid), str(driver), str(version)))
             return False
-        os.remove(dep_path)
-        shutil.copytree(dest, driver_path)
+        driver = buf['driver']
+        if driver:
+            src = os.path.join(dirname, 'driver')
+            os.mkdir(src)
+            filenames = driver.keys()
+            for name in filenames:
+                filepath = os.path.join(src, name)
+                with open(filepath, 'wb') as f:
+                    f.write(driver[name])
+            shutil.copytree(src, driver_path)
     finally:
         shutil.rmtree(dirname)
     return True
-
-def install_app(uid, package, version=None):
-     return install(uid, package, version, APP)
 
 def uninstall(uid, package, typ):
     addr = _get_frontend()
@@ -133,74 +173,45 @@ def uninstall(uid, package, typ):
         return
     return ret
 
-def uninstall_app(uid, app):
-    return uninstall(uid, app, typ=APP)
+def uninstall_app(uid, package):
+    return uninstall(uid, package, typ=APP)
 
-def _check_dep(path):
-    if os.path.isfile(path):
-        with open(path) as file_dependency:
-            lines = file_dependency.readlines()
-            for line in lines:
-                try:
-                    package_version = ''
-                    installer_name = ''
-                    res = []
-                    
-                    for str_equal in line.split('='):
-                        if str_equal.strip(): # not blank
-                            for str_blank in  str_equal.split():
-                                res.append(str_blank)
-                    
-                    if len(res) % 2 == 0:
-                        if len(res):
-                            log_err('util', 'failed to check dependency, invalid format' )
-                            return False
-                        continue # if it is blank, then continue
-                    else:
-                        package_name =  res[0]
-                        
-                        for index_to_match in range(1, len(res), 2):
-                            if res[index_to_match] == 'installer':
-                                installer_name = res[index_to_match + 1]
-                                continue
-                            if res[index_to_match] == 'version':
-                                package_version = res[index_to_match + 1]
-                                continue
-                        
-                        if installer_name == '':
-                            installers = ['pip', 'apt-get']
-                            for installer in installers:
-                                installer_name = installer
-                                if package_version == '': 
-                                    cmd = '%s install %s' % (str(installer_name), str(package_name))
-                                else :
-                                    cmd = '%s install %s==%s' % (str(installer_name), str(package_name), str(package_version))
-                                status, output = commands.getstatusoutput(cmd)
-                                if status == 0:
-                                    log_debug('util', 'check dependency, finished installing %s' % package_name)
-                                    break
-                            if status != 0:
-                                log_err('util', 'check dependency, invalid installer, failed to install %s' % str(package_name))
-                                return False
-                        else:
-                            if package_version == '':
-                                cmd = '%s install %s' % (str(installer_name), str(package_name))
-                            else:
-                                cmd = '%s install %s==%s' % (str(installer_name), str(package_name), str(package_version))
-                            status, output = commands.getstatusoutput(cmd)
-                            if status == 0:
-                                log_debug('util', 'check dependency, finished installing %s' % str(package_name))
-                            else:
-                                log_err('util', 'check dependency, failed to install %s' % str(package_name))
-                                return False
-                except:
-                    continue # if it is blank, continue. else return False
-        return True
+def _check_dep(buf):
+    if not buf:
+        return
+    
+    dep = yaml.load(buf)
+    if not dep:
+        return
+    
+    cmds = []
+    for i in dep:
+        installer = dep[i].get('installer')
+        if installer not in INSTALLERS:
+            log_err('util', 'failed to check dependency, invalid installer')
+            return
+        cmd = '%s install %s' % (installer, i)
+        version = dep[i].get('version')
+        if version:
+            if installer ==APT:
+                cmd += '=%s' % version
+            elif installer == PIP:
+                cmd += '==%s' % version
+        cmds.append(cmd)
+    
+    for cmd in cmds:
+        status, output = commands.getstatusoutput(cmd)
+        if status != 0:
+            log_err('util', 'failed to check dependency')
+            return
+    return True
 
 def localhost():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
-    
+    ip = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', IFACE[:15]))[20:24])
+    print '@@@@@@util->loaclhost', ip
+    return ip
+
 def check_category(category):
     if CATEGORIES.has_key(category):
         return CATEGORIES.get(category)

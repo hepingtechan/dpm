@@ -1,0 +1,11 @@
+#!/bin/sh
+apt-get install -y python-pip
+apt-get install python-setuptools
+easy_install rsa
+pip install --upgrade pip
+pip install hdfs --upgrade
+pip install pyyaml --upgrade
+pip install hash_ring --upgrade
+pip install pymongo --upgrade
+pip install websocket-client --upgrade
+pip install tornado --upgrade

@@ -18,21 +18,24 @@
 #      MA 02110-1301, USA.
 
 import os
+import zlib
+import json
 import shutil
 import zerorpc
 import tempfile
 import commands
 from threading import Lock
 from lib.db import Database
-from lib.zip import unzip_file
 from conf.log import LOG_APP
-from lib.rpcclient import RPCClient
 from hash_ring import HashRing
 from lib.util import APP, localhost
-from conf.path import PATH_INSTALLER
+from lib.rpcclient import RPCClient
+from conf.config import INSTALL_TOOL
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT
-from conf.servers import SERVER_REPO, SERVER_APPDB
+from conf.servers import SERVER_REPOSITORY, SERVER_APPDB, REPOSITORY_PORT
+
+if INSTALL_TOOL == 'vdtools':
+    from vdtools import installer
 
 class App():
     def __init__(self):
@@ -51,50 +54,35 @@ class App():
         server = ring.get_node(package)
         return server
     
-    def _install(self, buf):
-        dirname = tempfile.mkdtemp()
-        try:
-            src = os.path.join(dirname, 'app.zip')
-            with open(src, 'wb') as f:
-                f.write(buf)
-            dest = os.path.join(dirname, 'app')
-            unzip_file(src, dest)
-            if PATH_INSTALLER:
-                cmd = '%s %s' % (PATH_INSTALLER, dest)
-                status, output = commands.getstatusoutput(cmd)
-                if status ==  0:
-                    return output
-            else:
-                return str(None)
-        finally:
-            shutil.rmtree(dirname)
+    def _install(self, uid, content):
+        print 'App, 1-0'
+        if  content:
+            print 'App, 1-1 content=%s' % str(content)
+            return True
+#         output = installer.install(uid, content)
+#         print 'App, 1-3 output=%s' % str(output)
+#         if output:
+#             print 'App, 1-4'
+#             return output
+        else:
+            print 'App, 1-5'
+            return str(None)
     
-    def install(self, uid, package, version):
+    def install(self, uid, package, version, content):
         self._lock.acquire()
         try:
             if self._db.has_package(uid, package, None):
                 show_error(self, 'failed to install, cannot install %s again' % package)
                 return
             else:
-                addr = self._get_repo(package)
-                rpcclient = RPCClient(addr, REPOSITORY_PORT)
-                if not version:
-                    version = rpcclient.request('version', package=package)
-                    if not version:
-                        show_error(self, 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
-                        return
-                ret = rpcclient.request('download', package=package, version=version)
-                if ret:
-                    result = self._install(ret)
-                    if result:
-                        self._db.set_package(uid, package, version, result)
-                        self._print('finished installing %s, version=%s' % (package, version))
-                        return True
-            show_error(self, 'failed to install %s' % package)
-            return
+                result = self._install(uid, content)
+                if result:
+                    self._db.set_package(uid, package, version, result)
+                    self._print('finished installing %s, version=%s' % (package, version))
+                    return True
         finally:
             self._lock.release()
-        
+    
     def _uninstall(self, uid, package, info):
         pass
         
@@ -102,7 +90,7 @@ class App():
         self._lock.acquire()
         try:
             if not self._db.has_package(uid, package, None):
-                show_error(self, 'failed to uninstall %s ' % package)
+                show_error(self, 'failed to uninstall %s' % package)
                 return
             version, info = self._db.get_package(uid, package, None)
             if info:

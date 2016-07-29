@@ -23,7 +23,7 @@ from threading import Thread
 from lib.log import show_error
 from lib.rpcserver import RPCServer
 from lib.util import APP, DRIVER, localhost
-from conf.config import INSTALLER_PORT
+from conf.servers import INSTALLER_PORT
 
 class Installer(RPCServer):
     def __init__(self, addr, port):
@@ -31,9 +31,9 @@ class Installer(RPCServer):
         self._app = App()
         self._driver = Driver()
     
-    def install(self, uid, package, version, typ):
+    def install(self, uid, package, version, typ, content):
         if typ == APP:
-            return self._app.install(uid, package, version)
+            return self._app.install(uid, package, version, content)
         elif typ == DRIVER:
             return self._driver.install(uid, package, version)
         else:

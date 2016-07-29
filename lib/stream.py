@@ -44,6 +44,7 @@ class Stream(object):
             flg = 0
         cnt = 0
         length = len(buf)
+        #print('length=%d' % length)
         total = (length + PACKET_LEN - 1) / PACKET_LEN
         head = self._uid + struct.pack('I', flg) + struct.pack('I', total)
         self._sock.sendall(head)

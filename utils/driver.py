@@ -20,9 +20,8 @@
 from hash_ring import HashRing
 from conf.log import LOG_DRIVER
 from lib.rpcclient import RPCClient
-from conf.servers import SERVER_REPO
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT
+from conf.servers import SERVER_REPOSITORY, REPOSITORY_PORT
 
 class Driver(object):
     def _print(self, text):
@@ -43,5 +42,4 @@ class Driver(object):
                 show_error(self, 'failed to install, invalid version, uid=%s, package=%s' % (uid, package))
                 return
         ret = rpcclient.request('download', package=package, version=version)
-        self._print('finished installing driver %s, version=%s' % (package, version))
         return ret

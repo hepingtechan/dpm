@@ -1,0 +1,73 @@
+#!/usr/bin/python
+
+import os
+import sys
+import argparse
+import commands
+
+_name = commands.getoutput('readlink -f %s' % sys.argv[0])
+_path = os.path.dirname(_name)
+_dir = os.path.dirname(_path)
+sys.path.append(_dir)
+
+from lib.log import log_debug
+from lib.util import login, upload_app, uninstall_app, upload_driver, install_driver
+
+def get_version(package):
+    res = package.split('==')
+    return res[0].strip(), res[1].strip()
+
+def main(): 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--driver', action='store_true')
+    parser.add_argument('-a', '--app', action='store_true')
+    parser.add_argument('-i',  dest='uid', default=None)
+    parser.add_argument('-u',  dest='username', default=None)
+    parser.add_argument('-p',  dest='password', default=None)
+    parser.add_argument('-v',  dest='version', default=None)
+    parser.add_argument('-s',  dest='source', default=None)
+    
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit()
+    
+    cmd = sys.argv[1]
+    if cmd == 'login':
+        args = parser.parse_args(sys.argv[2:])
+        uid, key = login(args.username, args.password)
+        log_debug('dpm', 'finished login, uid=%s, key=%s' % (str(uid), str(key)))
+        sys.exit()
+    else:
+        package = sys.argv[2]
+        args = parser.parse_args(sys.argv[3:])
+        user = args.username
+        password = args.password
+        version = args.version
+        path = args.source
+        uid = args.uid
+        
+    if len(package.split('==')) > 1:
+        package, version = get_version(package)
+    
+    if args.app:
+        if cmd == 'upload':
+            uid, key = login(user, password)
+            if upload_app(path, uid, package, version, key):
+                log_debug('dpm', 'finished uploading app %s' % package)
+        elif cmd == 'uninstall':
+            uid, key = login(user, password)
+            if uninstall_app(uid, package):
+                log_debug('dpm', 'finished removing app %s' % package)
+    
+    elif args.driver:
+        if cmd == 'upload':
+            uid, key = login(user, password)
+            if upload_driver(path, uid, package, version, key):
+                log_debug('dpm', 'finished uploading driver %s' % package)
+        elif cmd == 'install':
+            uid, key = login(user, password)
+            if install_driver(uid, package, version):
+                log_debug('dpm', 'finished installing driver %s' % package)
+
+if __name__ == '__main__': 
+    main()

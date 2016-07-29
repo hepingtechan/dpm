@@ -18,6 +18,7 @@
 #      MA 02110-1301, USA.
 
 import random
+from conf.config import DEBUG
 from lib.util import APP, localhost
 from lib.rpcclient import RPCClient
 from lib.rpcserver import RPCServer
@@ -25,7 +26,8 @@ from pymongo import MongoClient
 from conf.log import LOG_ALLOCATOR
 from lib.log import show_info, show_error
 from conf.servers import SERVER_ALLOCDB
-from conf.config import MONGO_PORT, ALLOCATOR_PORT, DEBUG
+from conf.mongodb import MONGO_PORT
+from conf.servers import ALLOCATOR_PORT
 
 CACHE_MAX = 4096
 INST_SEARCH_FACTOR = 4
@@ -54,7 +56,7 @@ class Allocator(RPCServer):
         return self._client.test[name]
     
     def add_installer(self, addr):
-        self._print('add_installer starts!')
+        #self._print('add_installer starts!')
         try:
             coll = self._get_collection(TABLE_INST_ADDR)
             info = coll.find_one({'addr':addr})
@@ -80,7 +82,7 @@ class Allocator(RPCServer):
              show_error(self, 'failed to add installer')
         
     def alloc_installer(self, uid):
-        self._print('start to allocate installer')
+        #self._print('start to allocate installer')
         try:
             coll = self._get_collection(TABLE_INST_TOTAL)
             info = coll.find_one({})
@@ -136,7 +138,7 @@ class Allocator(RPCServer):
             show_error(self, 'failed to allocate installer')
     
     def get_installer(self, uid):
-        self._print('start to get installer, uid=%s' % str(uid))
+        #self._print('start to get installer, uid=%s' % str(uid))
         try:
             cache = self._cache
             addr = cache.get(uid)

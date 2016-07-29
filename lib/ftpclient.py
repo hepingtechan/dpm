@@ -36,7 +36,7 @@ class FTPClient():
         if LOG_FTPCLIENT:
             show_info(self, text)
     
-    def _generate_zip(self, path, package, version, buf):
+    def _generate_file(self, path, package, version, buf):
         filename = get_filename(package, version)
         filepath = os.path.join(path, filename)
         os.mknod(filepath)    
@@ -47,7 +47,7 @@ class FTPClient():
     def upload(self, addr, port, package, version, buf):
         dirname = tempfile.mkdtemp()
         try:
-            filename = self._generate_zip(dirname, package, version, buf)
+            filename = self._generate_file(dirname, package, version, buf)
             filepath = os.path.join(dirname, filename)
             self.ftp.connect(addr, port)
             self.ftp.login(ADMIN_NAME, ADMIN_PASSWORD)

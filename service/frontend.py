@@ -22,12 +22,12 @@ import socket
 from random import randint
 from lib.util import localhost
 from lib.stream import Stream
+from conf.config import PKG_MAX
 from conf.log import LOG_FRONTEND
 from lib.log import show_info, show_error
 from lib.stream import UID_LEN, HEAD_LEN
-from conf.servers import SERVER_BACKEND
-from conf.config import FRONTEND_PORT, BACKEND_PORT, PKG_MAX
 from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
+from conf.servers import FRONTEND_PORT, BACKEND_PORT, SERVER_BACKEND
 
 BODY_MAX = 64
 

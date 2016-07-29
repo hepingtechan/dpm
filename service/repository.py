@@ -27,20 +27,20 @@ from hash_ring import HashRing
 from lib.rpcserver import RPCServer
 from conf.log import LOG_REPOSITORY
 from lib.log import show_info, show_error
-from conf.config import REPOSITORY_PORT, SHOW_TIME, DEBUG, HDFS
-from conf.servers import  SERVER_REPODB, SERVER_UPLOADER, SERVER_REPO
+from conf.config import SHOW_TIME, DEBUG, HDFS
+from conf.servers import  SERVER_REPODB, SERVER_UPLOADER, SERVER_REPOSITORY, REPOSITORY_PORT
 
 if SHOW_TIME:
     from datetime import datetime
 
 if HDFS:
-    from conf.config import HDFS_PORT
+    from conf.hadoop import HDFS_PORT
     from lib.hdfsclient import HDFSClient
 else:
-    from conf.config import FTP_PORT
     from lib.ftpclient import FTPClient
     from lib.ftpserver import FTPServer
 
+FTP_PORT = 21
 LOCK_MAX = 1024
 
 class Repository(RPCServer):
@@ -51,16 +51,16 @@ class Repository(RPCServer):
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port)
         len_up = len(SERVER_UPLOADER)
-        len_repo = len(SERVER_REPO)
+        len_repo = len(SERVER_REPOSITORY)
         if len_up < len_repo or len_up % len_repo != 0:
             show_error(self, 'failed to initialize')
             raise Exception('failed to initialize')
         addr = localhost()
-        if addr not in SERVER_REPO:
+        if addr not in SERVER_REPOSITORY:
             show_error(self, 'failed to initialize')
             raise Exception('failed to initialize ')
-        for i in range(len(SERVER_REPO)):
-            if  addr == SERVER_REPO[i]:
+        for i in range(len(SERVER_REPOSITORY)):
+            if  addr == SERVER_REPOSITORY[i]:
                 break
         total = len_up / len_repo 
         self._upload_servers = SERVER_UPLOADER[i * total:(i + 1) * total]
@@ -97,7 +97,7 @@ class Repository(RPCServer):
         return self._client.upload(addr, self._port, package, version, buf)
     
     def upload(self, uid, package, version, buf):
-        self._print('start to upload, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        #self._print('start to upload, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         lock = self._get_lock(package)
         lock.acquire()
         try:
@@ -118,7 +118,7 @@ class Repository(RPCServer):
                 self._db.set_package(uid, package, version, '')
                 if not ver or ver < version:
                     self._db.set_version(uid, package, version)
-                self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
+                #self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
                 if DEBUG:
                     self._upload_cnt += 1
                     self._print('upload, count=%d' % self._upload_cnt)
@@ -129,7 +129,7 @@ class Repository(RPCServer):
             lock.release()
     
     def download(self, package, version):
-        self._print('start to download, package=%s, version=%s' % (str(package), str(version)))
+        #self._print('start to download, package=%s, version=%s' % (str(package), str(version)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -140,17 +140,20 @@ class Repository(RPCServer):
             if not self._db.has_package(uid, package, version):
                 show_error(self, 'failed to download, invalid version, package=%s, version=%s' % (str(package), str(version)))
                 return
-            if DEBUG:
-                self._download_cnt += 1
-                self._print('download, count=%d' % self._download_cnt)
             if SHOW_TIME:
                 self._print( 'download, time=%d sec' % (datetime.utcnow() - start_time).seconds)            
-            return self._client.download(addr, self._port, package, version)
+            res = self._client.download(addr, self._port, package, version)
+            if res:
+                if DEBUG:
+                    self._download_cnt += 1
+                    self._print('download, count=%d' % self._download_cnt)
+                print 'Repository res=%s' % str(res)
+                return res
         except:
             show_error(self, 'failed to download')
     
     def version(self, package):
-        self._print('start to get version, uid=%s, package=%s' % (str(uid), str(package)))
+        #self._print('start to get version, uid=%s, package=%s' % (str(uid), str(package)))
         _, ver = self._db.get_version(package)
         return ver
     

@@ -20,17 +20,18 @@
 import os
 import json
 import uuid
+import yaml
 from lib.user import User
 from threading import Lock
 from hash_ring import HashRing
+from lib.scanner import Scanner
 from lib.rpcclient import RPCClient
 from lib.rpcserver import RPCServer
 from conf.log import LOG_BACKEND
 from lib.log import show_info, show_error
-from lib.sandbox import Sandbox, OP_SCAN
-from lib.util import localhost, get_uid, check_category, APP
-from conf.servers import SERVER_REPO, SERVER_ALLOC, SERVER_RECORDER
-from conf.config import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, SHOW_TIME, DEBUG
+from conf.config import SHOW_TIME, DEBUG
+from lib.util import localhost, get_uid, check_category, APP, DRIVER
+from conf.servers import BACKEND_PORT, REPOSITORY_PORT, ALLOCATOR_PORT, INSTALLER_PORT, RECORDER_PORT, SERVER_RECORDER, SERVER_REPOSITORY, SERVER_ALLOCATOR
 
 LOCK_MAX = 1024
 CACHE_MAX = 4096
@@ -41,7 +42,7 @@ if SHOW_TIME:
 class Backend(RPCServer):
     def __init__(self, addr, port):
         RPCServer.__init__(self, addr, port, user=User())
-        self._sandbox = Sandbox()
+        self._scanner = Scanner()
         locks = []
         for _ in range(LOCK_MAX):
             locks.append(Lock())
@@ -53,6 +54,7 @@ class Backend(RPCServer):
             self._upload_cnt = 0
             self._install_cnt = 0
             self._uninstall_cnt = 0
+            self._download_cnt = 0
     
     def _print(self, text):
         if LOG_BACKEND:
@@ -81,16 +83,52 @@ class Backend(RPCServer):
         return server
     
     def _update(self, uid, category, package, title, description):
-        self._print('update, cat=%s, desc=%s' % (str(category), str(description)))
+        #self._print('update, cat=%s, desc=%s' % (str(category), str(description)))
         addr = self._get_recorder(package)
         rpcclient = RPCClient(addr, RECORDER_PORT)
         return rpcclient.request('upload', uid=uid, category=category, package=package, title=title, description=description)
     
     def upload(self, uid, package, version, buf, typ):
-        self._print('start to upload, uid=%s, package=%s' % (str(uid), str(package)))
+        #self._print('start to upload, uid=%s, package=%s' % (str(uid), str(package)))
         try:
+            print 'Backend @1-0@' 
             if SHOW_TIME:
                 start_time = datetime.utcnow()
+            try:
+                desc = self._scanner.scan(buf)
+            except:
+                show_error(self, 'failed to scan package %s' % str(package))
+                return
+            print 'Backend @1-1@'
+            if not desc:
+                show_error(self, 'no description, package=%s' % str(package))
+                return
+            print 'Backend @1-1@ desc=%s' % str(desc)
+            args = yaml.load(desc)
+            print 'Backend @1-1@ args=%s' % str(args)
+            print 'Backend @1-1@ type=%s' % type(args)
+            if not args:
+                show_error(self, 'failed to load description, package=%s' % str(package))
+                return
+            
+            if typ == APP:
+                print 'Backend @1-2@'
+                print 'Backend @1-2@ category=%s' % str(args.get('category'))
+                print 'Backend @1-2@ title=%s' % str(args.get('title'))
+                print 'Backend @1-2@ description=%s' % str(args.get('description'))
+                if not args.get('category') or not args.get('title') or not args.get('description'):
+                    show_error(self, 'invalid description')
+                    return
+                print 'Backend @1-3@' 
+                cat = check_category(args['category'])
+                if not cat:
+                    show_error(self, 'invalid category, package=%s' % str(package))
+                    return
+            if typ == DRIVER:
+                if not args.get('title') or not args.get('description'):
+                    show_error(self, 'invalid description')
+                    return
+            
             addr = self._get_repo(package)
             rpcclient = RPCClient(addr, REPOSITORY_PORT)
             res = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf)
@@ -100,19 +138,17 @@ class Backend(RPCServer):
             if not res:
                 show_error(self, '%s failed to upload %s to repo' % (str(uid), str(package)))
                 return
+            print 'Backend @1-4@' 
+            
+            if SHOW_TIME:
+                self._print('upload, analyze yaml, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                start_time = datetime.utcnow()
             if typ == APP:
-                cat, title, desc = self._sandbox.evaluate(OP_SCAN, buf)
-                if not cat or not title or not desc:
-                    show_error(self, 'invalid package')
-                    return
-                cat = check_category(cat)
-                if not cat:
-                    show_error(self, 'invalid category')
-                    return
-                if SHOW_TIME:
-                    self._print('upload, analyze yaml, time=%d sec' % (datetime.utcnow() - start_time).seconds)
-                    start_time = datetime.utcnow()
-                res = self._update(uid, cat, package, title, desc)
+                print 'Backend @1-5@ category=%s' % str(args.get('category')) 
+                print 'Backend @1-5@ cat=%s' % str(cat) 
+                res = self._update(uid, cat, package, args.get('title'), args.get('description'))
+                print 'Backend @1-6@ res=%s' % str(res) 
+                
             if res:
                 if DEBUG:
                     self._upload_cnt += 1
@@ -121,10 +157,10 @@ class Backend(RPCServer):
                     self._print('upload, update recorder, time=%d sec' % (datetime.utcnow() - start_time).seconds)
                 return res
         except:
-            show_error(self, 'failed to upload')
+            show_error(self, 'failed to upload %s' % str(package))
     
     def _get_installer(self, uid):
-        self._print('start to get instsaller addr')
+        #self._print('start to get instsaller addr')
         try:
             cache = self._cache
             addr = cache.get(uid)
@@ -141,14 +177,37 @@ class Backend(RPCServer):
         except:
             show_error(self, 'failed to get instsaller addr')
     
-    def install(self, uid, package, version, typ):
-        self._print('start to install')
+    def download(self, package, version):
+        #self._print('start to download')
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            addr = self._get_repo(package)
+            rpcclient = RPCClient(addr, REPOSITORY_PORT)
+            if not version:
+                version = rpcclient.request('version', package=package)
+                if not version:
+                    show_error(self, 'failed to download, invalid version, package=%s, ' % str(package))
+                    return
+            ret = rpcclient.request('download', package=package, version=version)
+            if ret:
+                if SHOW_TIME:
+                    self._print('download, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                if DEBUG:
+                    self._download_cnt += 1
+                    self._print('download, count=%d' % self._download_cnt)
+                return ret
+        except:
+            show_error(self, 'failed to download')
+    
+    def install(self, uid, package, version, typ, content):
+        #self._print('start to install')
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
             addr = self._get_installer(uid)
             rpcclient = RPCClient(addr, INSTALLER_PORT)
-            res = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ)
+            res = rpcclient.request('install', uid=uid, package=package, version=version, typ=typ, content=content)
             if not res:
                 show_error(self, 'failed to install')
                 return
@@ -169,7 +228,7 @@ class Backend(RPCServer):
             show_error(self, 'failed to install')
     
     def uninstall(self, uid, package, typ):
-        self._print('start to uninstall')
+        #self._print('start to uninstall')
         addr = self._get_installer(uid)
         rpcclient = RPCClient(addr, INSTALLER_PORT)
         res = rpcclient.request('uninstall', uid=uid, package=package, typ=typ)
@@ -182,23 +241,23 @@ class Backend(RPCServer):
         return res
         
     def get_name(self, uid):
-        self._print('start to get name, uid=%s' % str(uid))
+        #self._print('start to get name, uid=%s' % str(uid))
         return self.user.get_name(uid)
     
     def get_installed_packages(self, uid, typ):
-        self._print('start to get installed packages')
+        #self._print('start to get installed packages')
         addr = self._get_installer(uid)
         rpcclient = RPCClient(addr, INSTALLER_PORT)
         return rpcclient.request('get_packages', uid=uid, typ=typ)
     
     def has_package(self, uid, package, typ):
-        self._print('has_package, package=%s' % str(package))
+        #self._print('has_package, package=%s' % str(package))
         addr = self._get_installer(uid)
         rpcclient = RPCClient(addr, INSTALLER_PORT)
         return rpcclient.request('has_package', uid=uid, package=package, typ=typ)
     
     def _alloc_installer(self, uid):
-        self._print('alloc_installer->uid=%s' % str(uid))
+        #self._print('alloc_installer->uid=%s' % str(uid))
         addr = self._get_allocator(uid)
         rpcclient = RPCClient(addr, ALLOCATOR_PORT)
         if  rpcclient.request('alloc_installer', uid=uid):
@@ -208,7 +267,7 @@ class Backend(RPCServer):
             return False
     
     def register(self, user, pwd, email):
-        self._print('register starts')
+        #self._print('register starts')
         lock = self._get_lock(user)
         lock.acquire()
         try:
@@ -234,7 +293,7 @@ class Backend(RPCServer):
             lock.release()
     
     def login(self, user, pwd):
-        self._print('start to login')
+        #self._print('start to login')
         if SHOW_TIME:
             start_time = datetime.utcnow()
         password = self.user.get_password(user)

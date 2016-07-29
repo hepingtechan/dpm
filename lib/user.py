@@ -24,10 +24,11 @@ from lib.util import get_uid
 from hash_ring import HashRing
 from conf.log import LOG_USER
 from pymongo import MongoClient
+from conf.config import SHOW_TIME
 from conf.path import PATH_SHELVEDB
 from lib.log import show_info, show_error
+from conf.mongodb import MONGO_PORT
 from conf.servers import SERVER_DATABASE
-from conf.config import MONGO_PORT, SHOW_TIME
 
 if SHOW_TIME:
     from datetime import datetime
