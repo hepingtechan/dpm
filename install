@@ -12,9 +12,10 @@ pip install tornado
 git clone -b github_unstable https://github.com/younggege/pyblade.git /tmp/pyblade
 cd /tmp/pyblade
 python setup.py install
-rm -rf /tmp/pyblade
 
 git clone -b unstable https://github.com/virtdev/vdtools.git /tmp/vdtools
 cd /tmp/vdtools
 python setup.py install
+
+rm -rf /tmp/pyblade
 rm -rf  /tmp/vdtools
