@@ -48,7 +48,7 @@ if SHOW_TIME:
 
 TOP = 4
 TOP_NAME = "top%d" % TOP
-INPUT_MAX = 3072
+INPUT_MAX = 4096
 
 class Manager(object):
     def __init__(self):
@@ -77,19 +77,15 @@ class Manager(object):
         return server
     
     def upload(self, buf, uid, package, version, typ, key):
-        print 'Manager  555--0'
         ret = upload_package(buf, uid, package, version, typ, key)
-        print 'Manager  555--1'
-        print  'Manager ret =%s' % str(ret)
         if ret:
-            print '666666'
             return '%s upload %s-%s successfully' % (str(uid), str(package), str(version))
         else:
             show_error(self, 'failed to upload, uid=%s, package=%s, version=%s, typ=%s' % (str(uid), str(package), str(version), str(typ)))
             return False
     
     def download(self, package, version):
-        #self._print('download, package=%s, version=%s' %(str(package), str(vetsion)))
+        self._print('download, package=%s, version=%s' %(str(package), str(vetsion)))
         try:
             addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
@@ -105,7 +101,7 @@ class Manager(object):
             show_error(self, 'failed to download')
     
     def install(self, uid, package, version, typ, content):
-        #self._print('install, package=%s, vetsion=%s' %(str(package), str(version)))
+        self._print('install, package=%s, vetsion=%s' %(str(package), str(version)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -143,7 +139,7 @@ class Manager(object):
         return self._recorder.get_categories()
        
     def get_description(self, package):
-        #self._print('get_descripton starts' )
+        self._print('get_descripton starts' )
         try:
             ret = self._recorder.get_description(package)
             if ret:
@@ -152,14 +148,14 @@ class Manager(object):
              show_error(self, 'get_descripton failed')
     
     def get_inst(self, package):
-        #self._print('get_inst starts, package=%s' %str(package))
+        self._print('get_inst starts, package=%s' %str(package))
         try:
             return self._recorder.get_inst(package)
         except:
              show_error(self, 'get_inst failed')
     
     def get_top(self, category):
-        #self._print('get_top starts, category=%s' %str(category))
+        self._print('get_top starts, category=%s' %str(category))
         try:
             ret = self._recorder.get_top(category)
             if ret:
@@ -170,7 +166,7 @@ class Manager(object):
              show_error(self, 'get_top failed')
     
     def get_top_details(self, category):
-        #self._print('get_top_details starts')
+        self._print('get_top_details starts')
         try:
             ret = self._recorder.get_top_details(category)
             if ret:
@@ -188,7 +184,7 @@ class Manager(object):
              show_error(self, 'get_top_details failed')
     
     def get_package_detail(self, package):
-        #self._print('get_package_detail starts')
+        self._print('get_package_detail starts')
         try:
             inst, title = self._recorder.get_package_detail(package)
             auth = self.get_author(package)
@@ -200,7 +196,7 @@ class Manager(object):
             show_error(self, 'get_package_detail failed')
     
     def get_packages_details(self, category, rank):
-        #self._print('get_packages_details starts')
+        self._print('get_packages_details starts')
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -220,14 +216,14 @@ class Manager(object):
              show_error(self, 'get_packages_details failed')
             
     def get_counter(self, category):
-        #self._print('get_counter->category=%s' % str(category))
+        self._print('get_counter->category=%s' % str(category))
         try:
             return self._recorder.get_counter(category)
         except:
             show_error(self, 'get_counter failed')
     
     def get_author(self, package):
-        #self._print('get_author starts, package=%s' % str(package))
+        self._print('get_author starts, package=%s' % str(package))
         try:
             uid = self._recorder.get_uid(package)
             if uid:
@@ -240,7 +236,7 @@ class Manager(object):
              show_error(self, 'get_author failed')
     
     def get_installed_packages(self, uid):
-        #self._print('get_installed_packages starts')
+        self._print('get_installed_packages starts')
         try:
             addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
@@ -256,7 +252,7 @@ class Manager(object):
             show_error(self, 'failed to get installed packages')
     
     def has_package(self, uid, package):
-        #self._print('has_package starts , package=%s' % str(package))
+        self._print('has_package starts , package=%s' % str(package))
         addr = self._get_backend()
         rpcclient = RPCClient(addr, BACKEND_PORT)
         res = rpcclient.request('has_package', uid=uid, package=package, typ=APP)
@@ -265,7 +261,7 @@ class Manager(object):
         return False
     
     def register(self, user, password, email):
-        #self._print('register starts')
+        self._print('register starts')
         self._lock.acquire()
         try:
             if SHOW_TIME:
@@ -288,7 +284,7 @@ class Manager(object):
             self._lock.release()
     
     def login(self, user, password):
-        #self._print('login starts')
+        self._print('login starts')
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -313,9 +309,8 @@ class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
         return True
     
     def on_message(self, message):
-        print '@@@message=%s' % str(message)
         if len(message) > INPUT_MAX:
-            show_error(self, 'invalid message' )
+            show_error(self, 'invalid message length' )
             return
         ret = ''
         info = json.loads(message)
@@ -366,18 +361,14 @@ class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
                 result = {'op': 'download', 'uid': uid, 'data': ret}
             
             elif op == 'install':
-                print 'Manager  111--0'
                 uid = info['uid']
                 pkg = info['package']
                 ver = info['version']
                 typ = info['type']
-                print 'Manager  111--1'
                 if typ == APP:
                     content = info['content']
-                    print 'Manager  111--2'
                 elif typ == DRIVER:
                     content = None
-                    print 'Manager  111--3'
                 ret = manager.install(uid, pkg, ver, typ, content)
                 result = {'op':'install', 'uid':uid, 'data':ret}
             

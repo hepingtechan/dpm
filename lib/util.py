@@ -72,9 +72,7 @@ def login(user, password):
 
 def dump_content(dirname, has_children=True):
     content = {}
-    print '@@util 2-0'
     for name in os.listdir(dirname):
-        print '@@util 2-1'
         path = os.path.join(dirname, name)
         if os.path.isdir(path):
             if name not in [APP, DRIVER]:
@@ -101,11 +99,8 @@ def dump_content(dirname, has_children=True):
 
 def upload_package(buf, uid, package, version, typ, key):
     addr = _get_frontend()
-    print '@@util 1-3'
     rpcclient = RPCClient(addr, FRONTEND_PORT, uid, key)
-    print '@@util 1-4'
     ret = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf, typ=typ)
-    print '@@util 1-5'
     if ret:
         return True
     else:

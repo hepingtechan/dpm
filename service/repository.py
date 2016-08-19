@@ -97,7 +97,7 @@ class Repository(RPCServer):
         return self._client.upload(addr, self._port, package, version, buf)
     
     def upload(self, uid, package, version, buf):
-        #self._print('start to upload, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        self._print('start to upload, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
         lock = self._get_lock(package)
         lock.acquire()
         try:
@@ -118,7 +118,7 @@ class Repository(RPCServer):
                 self._db.set_package(uid, package, version, '')
                 if not ver or ver < version:
                     self._db.set_version(uid, package, version)
-                #self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
+                self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
                 if DEBUG:
                     self._upload_cnt += 1
                     self._print('upload, count=%d' % self._upload_cnt)
@@ -129,7 +129,7 @@ class Repository(RPCServer):
             lock.release()
     
     def download(self, package, version):
-        #self._print('start to download, package=%s, version=%s' % (str(package), str(version)))
+        self._print('start to download, package=%s, version=%s' % (str(package), str(version)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -153,7 +153,7 @@ class Repository(RPCServer):
             show_error(self, 'failed to download')
     
     def version(self, package):
-        #self._print('start to get version, uid=%s, package=%s' % (str(uid), str(package)))
+        self._print('start to get version, uid=%s, package=%s' % (str(uid), str(package)))
         _, ver = self._db.get_version(package)
         return ver
     

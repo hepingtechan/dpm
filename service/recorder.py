@@ -68,7 +68,7 @@ class RecorderServer(object):
             show_info(self, text)
     
     def get_collection(self, table, package=None, category=None):
-        #self._print('get_collection starts, table=%s, category=%s' % (str(table), str(category)))
+        self._print('get_collection starts, table=%s, category=%s' % (str(table), str(category)))
         if category:
             coll = self._cat_coll.get(category)
             if not coll:
@@ -94,7 +94,7 @@ class RecorderServer(object):
                 return res.get('cat')
     
     def get_description(self, package):
-        #self._print('get_description starts, package=%s' %str(package))
+        self._print('get_description starts, package=%s' %str(package))
         try:
             category = self._get_category(package)
             if not category:
@@ -110,7 +110,7 @@ class RecorderServer(object):
              show_error(self, 'get_description failed')
     
     def get_inst(self, package):
-        #self._print('get_inst start, package=%s' %str(package))
+        self._print('get_inst start, package=%s' %str(package))
         try:
             category = self._get_category(package)
             if not category:
@@ -126,7 +126,7 @@ class RecorderServer(object):
              show_error(self, 'get_inst failed')
     
     def get_uid(self, package):
-        #self._print('get_uid starts, package=%s' %str(package))
+        self._print('get_uid starts, package=%s' %str(package))
         try:
             coll = self.get_collection(TABLE_AUTHOR, package=package)
             res = coll.find_one({'pkg':package}, {'uid':1, '_id':0})
@@ -136,7 +136,7 @@ class RecorderServer(object):
              show_error(self, 'get_uid failed')
     
     def get_package_detail(self, package):
-        #self._print('get_package_detail starts, package=%s' % str(package))
+        self._print('get_package_detail starts, package=%s' % str(package))
         try:
             category = self._get_category(package)
             if not category:
@@ -155,7 +155,7 @@ class RecorderServer(object):
             show_error(self, 'get_package_detail failed')
     
     def get_packages_details(self, category, rank):
-        #self._print('get_packages_details starts')
+        self._print('get_packages_details starts')
         try:
             result = []
             if SHOW_TIME:
@@ -182,14 +182,14 @@ class RecorderServer(object):
             return result
     
     def get_top(self, category):
-        #self._print('get_top starts, category=%s' %str(category))
+        self._print('get_top starts, category=%s' %str(category))
         try:
             return self._get_top(category)
         except:
              show_error(self, 'get_top failed')
     
     def get_top_details(self, category):
-        #self._print('get_top_details starts, category=%s' % str(category))
+        self._print('get_top_details starts, category=%s' % str(category))
         try:
             info = self._get_top(category)
             res = []
@@ -203,7 +203,7 @@ class RecorderServer(object):
             show_error(self, 'get_top_details failed')
     
     def get_counter(self, category):
-        #self._print('get_counter starts, category=%s' % str(category))
+        self._print('get_counter starts, category=%s' % str(category))
         try:
             coll = self.get_collection(TABLE_COUNTER, category=category)
             res = coll.find_one({'cat': category}, {'cnt':1, '_id':0})
@@ -224,7 +224,7 @@ class Recorder(RPCServer, RecorderServer):
             show_info(self, text)
     
     def _update_counter(self, category):
-        #self._print('update_counter->category=%s' % str(category))
+        self._print('update_counter->category=%s' % str(category))
         try:
             coll = self.get_collection(TABLE_COUNTER, category=category)
             res = coll.find_and_modify({'cat': category}, {'$inc':{'cnt':1}}, upsert=True)
@@ -236,7 +236,7 @@ class Recorder(RPCServer, RecorderServer):
              show_error(self, 'failed to update counter')
        
     def upload(self, uid, category, package, title, description):
-        #self._print('upload->category=%s, package=%s' % (str(category), str(package)))
+        self._print('upload->category=%s, package=%s' % (str(category), str(package)))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()
@@ -262,7 +262,7 @@ class Recorder(RPCServer, RecorderServer):
              show_error(self, 'failed to upload')
     
     def install(self, package):
-        #self._print('install->package=%s' %str(package))
+        self._print('install->package=%s' %str(package))
         try:
             if SHOW_TIME:
                 start_time = datetime.utcnow()

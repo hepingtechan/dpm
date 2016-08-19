@@ -56,7 +56,7 @@ class Allocator(RPCServer):
         return self._client.test[name]
     
     def add_installer(self, addr):
-        #self._print('add_installer starts!')
+        self._print('add_installer starts!')
         try:
             coll = self._get_collection(TABLE_INST_ADDR)
             info = coll.find_one({'addr':addr})
@@ -82,7 +82,7 @@ class Allocator(RPCServer):
              show_error(self, 'failed to add installer')
         
     def alloc_installer(self, uid):
-        #self._print('start to allocate installer')
+        self._print('start to allocate installer')
         try:
             coll = self._get_collection(TABLE_INST_TOTAL)
             info = coll.find_one({})
@@ -138,7 +138,7 @@ class Allocator(RPCServer):
             show_error(self, 'failed to allocate installer')
     
     def get_installer(self, uid):
-        #self._print('start to get installer, uid=%s' % str(uid))
+        self._print('start to get installer, uid=%s' % str(uid))
         try:
             cache = self._cache
             addr = cache.get(uid)

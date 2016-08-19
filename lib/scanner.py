@@ -27,9 +27,7 @@ if SCAN_TOOL == 'pyblade':
 
 class Scanner(object):
     def _do_scan(self, files):
-        print 'Scan @3-0@ files=%s' % str(files)
         result = scan(files)
-        print 'Scan @3-1@ result=%s' % str(result)
         if result:
             return True
     
@@ -42,35 +40,24 @@ class Scanner(object):
             show_error(self, 'cannot extract')
             return
         filenames = filter(lambda f: f.endswith('.py'), files)
-        print 'Scannner @2-0@ flies=%s' % str(files)
-        print 'Scannner @2-1@ flienames=%s' % str(filenames)
         info = {}
         for name in filenames:
             file = files.get(name)
             info.update({name: file})
-        print 'Scannner @2-2@ info=%s' % str(info)
         return info
     
     def _scan(self, buf):
-        print 'Scannner @1-0@'
         text = zlib.decompress(buf)
         content = json.loads(text)
-        print 'Scannner @1-3@ content=%s' % str(content)
-        print 'Scannner @1-4@ type=%s' % type(content)
         if not content or type(content) != dict:
             show_error(self, 'invalid content')
             return
-        print 'Scannner @1-5@'
         files = self._extract(content)
-        print 'Scannner @1-7@ flies=%s' % str(files)
         if not files:
             show_error(self, 'failed to extract package')
             return
-        print 'Scannner @1-8@'
         if not self._do_scan(files):
             raise Exception('this package contains invalid files')
-        print 'Scannner @1-9@'
-        print 'Scannner @1-9@ description=%s' % str(content.get('description'))
         return content.get('description')
     
     def scan(self, buf):
