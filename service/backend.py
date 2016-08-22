@@ -135,7 +135,7 @@ class Backend(RPCServer):
                 start_time = datetime.utcnow()
             if typ == APP:
                 res = self._update(uid, cat, package, args.get('title'), args.get('description'))
-                
+            
             if res:
                 if DEBUG:
                     self._upload_cnt += 1

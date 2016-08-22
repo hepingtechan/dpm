@@ -17,13 +17,6 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-import os
-import zlib
-import json
-import shutil
-import zerorpc
-import tempfile
-import commands
 from threading import Lock
 from lib.db import Database
 from conf.log import LOG_APP

@@ -24,9 +24,8 @@ import uuid
 import fcntl
 import yaml
 import struct
-import socket
-import types
 import shutil
+import socket
 import hashlib
 import tempfile
 import commands

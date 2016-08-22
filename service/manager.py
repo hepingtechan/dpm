@@ -19,12 +19,8 @@
 
 import os
 import zlib
-import yaml
-import uuid
 import json
-import shutil
-import zerorpc
-import tempfile
+import yaml
 import tornado.web
 import tornado.ioloop
 import tornado.template

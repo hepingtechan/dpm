@@ -1,21 +1,62 @@
 #!/bin/sh
-apt-get install -y python-pip
-apt-get install python-setuptools
-easy_install rsa
-pip install hdfs
-pip install pyyaml
-pip install hash_ring
-pip install pymongo
-pip install websocket-client
-pip install tornado
+if [ $# = 0 ]; then
+	apt-get install -y python-pip
+	apt-get install python-setuptools
+	easy_install rsa
+	pip install pyyaml
+	pip install hash_ring
+	pip install pymongo
+fi
 
-git clone -b github_unstable https://github.com/younggege/pyblade.git /tmp/pyblade
-cd /tmp/pyblade
-python setup.py install
+if [ "$1" = '-i' ]; then
+    echo "installing packages for installer"
+	apt-get install -y python-pip
+	apt-get install python-setuptools
+	easy_install rsa
+	pip install hash_ring
+	
+    if [ -e /tmp/vdtools ]; then
+	  rm -rf /tmp/vdtools
+	fi
+	git clone -b unstable https://github.com/virtdev/vdtools.git /tmp/vdtools
+	cd /tmp/vdtools
+	python setup.py install
+fi
 
-git clone -b unstable https://github.com/virtdev/vdtools.git /tmp/vdtools
-cd /tmp/vdtools
-python setup.py install
+if [ "$1" = '-b' ]; then
+    echo "installing packages for backend"
+	apt-get install -y python-pip
+	apt-get install python-setuptools
+	easy_install rsa
+	pip install pyyaml
+	pip install pymongo
+	pip install hash_ring
+	
+	if [ -e /tmp/pyblade ]; then
+	  rm -rf /tmp/pyblade
+	fi
+	git clone -b github_unstable https://github.com/younggege/pyblade.git /tmp/pyblade
+	cd /tmp/pyblade
+	python setup.py install
+fi
 
-rm -rf /tmp/pyblade
-rm -rf  /tmp/vdtools
+if [ "$1" = '-m' ]; then
+    echo "installing packages for manager"
+	apt-get install -y python-pip
+	apt-get install python-setuptools
+	easy_install rsa
+	pip install pyyaml
+	pip install hash_ring
+	pip install websocket-client
+	pip install tornado
+fi
+
+if [ "$1" = '-r' ]; then
+    echo "installing packages for repository"
+	apt-get install -y python-pip
+	apt-get install python-setuptools
+	easy_install rsa
+	pip install hdfs
+	pip install pymongo
+	pip install hash_ring
+fi
