@@ -120,7 +120,6 @@ class Backend(RPCServer):
                     return
             
             addr = self._get_repo(package)
-            print addr
             rpcclient = RPCClient(addr, REPOSITORY_PORT)
             res = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf)
             if SHOW_TIME:

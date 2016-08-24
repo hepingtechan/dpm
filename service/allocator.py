@@ -80,6 +80,16 @@ class Allocator(RPCServer):
             return True
         except:
              show_error(self, 'failed to add installer')
+    
+    def check_installer(self, addr):
+        self._print('add_installer starts!')
+        try:
+            coll = self._get_collection(TABLE_INST_ADDR)
+            info = coll.find_one({'addr':addr})
+            if info:
+                return True
+        except:
+             show_error(self, 'have not added installer %s' % addr)
         
     def alloc_installer(self, uid):
         self._print('start to allocate installer')

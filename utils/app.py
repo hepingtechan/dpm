@@ -48,17 +48,12 @@ class App():
         return server
     
     def _install(self, uid, content):
-        print 'App, 1-0'
         if  content:
-            print 'App, 1-1 content=%s' % str(content)
             return True
 #         output = installer.install(uid, content)
-#         print 'App, 1-3 output=%s' % str(output)
 #         if output:
-#             print 'App, 1-4'
 #             return output
         else:
-            print 'App, 1-5'
             return str(None)
     
     def install(self, uid, package, version, content):
