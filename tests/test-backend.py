@@ -1,5 +1,5 @@
 import rsa
-import pyyaml
+import yaml
 import pyblade
 import pymongo
 import hash_ring
