@@ -1,0 +1,33 @@
+#!/usr/bin/python
+
+import os
+import sys
+import argparse
+import commands
+
+_name = commands.getoutput('readlink -f %s' % sys.argv[0])
+_path = os.path.dirname(_name)
+_dir = os.path.dirname(_path)
+sys.path.append(_dir)
+
+from lib.log import log_debug 
+from lib.rpcclient import RPCClient
+from conf.servers import ALLOCATOR_PORT
+
+def add_installer(allocator, installer):
+    log_debug('dpm-inst', 'add_installer, allocator=%s' % str(allocator))
+    rpcclient = RPCClient(allocator, ALLOCATOR_PORT)
+    res = rpcclient.request('add_installer', addr=installer)
+    if res:
+        log_debug('dpm-inst', 'add_installer, installer=%s' % str(installer))
+        return True
+    return False
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', dest='allocator', default=None)
+    parser.add_argument('-i', dest='installer', default=None)
+    args = parser.parse_args(sys.argv[1:])
+    allocator = args.allocator
+    installer = args.installer
+    add_installer(allocator, installer)

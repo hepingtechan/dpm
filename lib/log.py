@@ -17,16 +17,18 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
+from conf.config import LOG_ERROR, LOG_DEBUG
 
-from conf.config import LOG_SHOW_TO_USER, LOG_DEBUG, LOG_ERROR
-
-def log_show_to_user(text):
-    if LOG_SHOW_TO_USER:
-        print text
+def log_err(location, text):
+    if LOG_ERROR:
+        print('%s: %s' % (location, text))
         
-
 def log_debug(location, text):
     if LOG_DEBUG:
-        print 'In %s , %s' % (location, text)
-        
-        
+        print('%s: %s' % (location, text))
+
+def show_info(cls, text):
+    log_debug(cls.__class__.__name__, text)
+    
+def show_error(cls, text):
+    log_err(cls.__class__.__name__, text)

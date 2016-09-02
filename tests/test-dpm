@@ -1,0 +1,209 @@
+#!/usr/bin/python
+
+import os
+import json
+from random import randint
+from websocket import create_connection
+
+PORT = 10001
+ADDR = '127.0.0.1'
+
+APP = 'app'
+PAGE_SIZE = 8
+CATEGORY = '0'
+VERSION = '1.1.0'
+APP_PACKAGE = 'cat0_test'
+
+USER = 'user4'
+PASSWORD = '123456'
+EMAIL = 'user4@gmail.com'
+
+def request(args):
+    message = json.dumps(args)
+    ws = create_connection("ws://%s:%d/ws" % (ADDR, PORT))
+    ws.send(message)
+    ret = ws.recv()
+    ws.close()
+    return json.loads(ret)
+
+def test_register():
+    args = {'op':'register', 'user':USER, 'password':PASSWORD, 'email':EMAIL}
+    result = request(args)
+    if not result or 'register' != result['op'] or USER != result['user'] or not  result['data']:
+        return
+    return True
+
+def test_login():
+    args = {'op':'login', 'user':USER, 'password':PASSWORD}
+    result = request(args)
+    if not result or 'login' != result['op'] or USER != result['user'] or not  result['data']:
+        raise Exception('failed to login %s' % str(USER))
+    return result['data']
+
+def test_upload_app():
+    ret = test_login()
+    uid = ret[0]
+    key = ret[1]
+    
+    args = {'op':'upload', 'uid':uid, 'package':APP_PACKAGE, 'version':VERSION, 'type':APP, 'key':key, 'app':{'graph':''}, 'description':{'category':'cat0', 'title':'test', 'description':'test'}}
+    result = request(args)
+    if not result or 'upload' != result['op'] or uid != result['uid'] or not  result['data']:
+        return
+    return True
+
+def test_install_app():
+    ret = test_login()
+    uid = ret[0]
+    
+    args = {'op':'download', 'uid': uid, 'package': APP_PACKAGE, 'version': VERSION}
+    result = request(args)
+    if not result or 'download' != result['op'] or uid != result['uid'] or not  result['data']:
+        raise Exception('failed to download app %s' % str(APP_PACKAGE))
+    ret = result['data']
+    if not ret:
+        raise Exception('failed to download app %s, invalid return message' % str(APP_PACKAGE))
+    
+    args = {'op':'install', 'uid':uid, 'package':APP_PACKAGE, 'version':VERSION, 'type':APP, 'content': ret}
+    result = request(args)
+    if not result or 'install' != result['op'] or uid != result['uid'] or not  result['data']:
+        return
+    return True
+
+def test_has_package():
+    ret = test_login()
+    uid = ret[0]
+    
+    args = {'op':'has_package', 'uid':uid, 'package':APP_PACKAGE}
+    result = request(args)
+    if not result or 'has_package' != result['op'] or APP_PACKAGE != result['package'] or not  result['data']:
+        return
+    return True
+
+def test_uninstall():
+    ret = test_login()
+    uid = ret[0]
+    
+    args = {'op':'uninstall', 'uid':uid, 'package':APP_PACKAGE}
+    result = request(args)
+    if not result or 'uninstall' != result['op'] or uid != result['uid'] or not  result['data']:
+        return
+    return True
+
+def test_get_top():
+    args = {'op':'get_top', 'category':CATEGORY}
+    result = request(args)
+    if not result or 'get_top' != result['op'] or CATEGORY != result['category']:
+        return
+    return True
+
+def test_get_top_details():
+    args = {'op':'get_top_details', 'category':CATEGORY}
+    result = request(args)
+    if not result or 'get_top_details' != result['op'] or CATEGORY != result['category']:
+        return
+    return True
+
+def test_get_author():
+    args = {'op':'get_author', 'package':APP_PACKAGE}
+    result = request(args)
+    if not result or 'get_author' != result['op'] or APP_PACKAGE != result['package'] or not  result['data']:
+        return
+    return True
+
+def test_get_categories():
+    args = {'op':'get_categories'}
+    result = request(args)
+    if not result or 'get_categories' != result['op'] or not  result['data']:
+        return
+    return True
+
+def test_get_description():
+    args = {'op':'get_description', 'package':APP_PACKAGE}
+    result = request(args)
+    if not result or 'get_description' != result['op'] or APP_PACKAGE != result['package'] or not  result['data']:
+        return
+    return True
+
+def test_get_counter():
+    args = {'op':'get_counter', 'category':CATEGORY}
+    result = request(args)
+    if not result or 'get_counter' != result['op'] or CATEGORY != result['category'] or not  result['data']:
+        raise Exception('failed to get counter')
+    return result['data']
+
+def test_get_inst():
+    args = {'op':'get_inst', 'package':APP_PACKAGE}
+    result = request(args)
+    if not result or 'get_inst' != result['op'] or APP_PACKAGE != result['package']:
+        return
+    return True
+
+def test_get_installedpackages():
+    ret = test_login()
+    uid = ret[0]
+    
+    args = {'op':'get_installed_packages', 'uid':uid}
+    result = request(args)
+    if not result or 'get_installed_packages' != result['op'] or uid != result['uid']:
+        return
+    return True
+
+def test_get_packagesdetails():
+    counter = test_get_counter()
+    if int(counter) < 1:
+        rank = 0
+    else:
+        rank = randint(0, (int(counter)  + PAGE_SIZE  - 1) / PAGE_SIZE - 1)
+    
+    args = {'op':'get_packages_details', 'category':CATEGORY, 'rank':rank}
+    result = request(args)
+    if not result or 'get_packages_details' != result['op'] or CATEGORY != result['category'] or rank != result['rank'] or not  result['data']:
+        return
+    return True
+
+if __name__ == '__main__':
+    if not test_register():
+        raise Exception('failed to test register')
+       
+    if not test_login():
+        raise Exception('failed to test login')
+      
+    if not test_upload_app():
+        raise Exception('failed to test upload app')
+     
+    if not test_install_app():
+        raise Exception('failed to test install app')
+     
+    if not test_has_package():
+        raise Exception('failed to test has package')
+    
+    if not test_get_top():
+        raise Exception('failed to test get top')
+    
+    if not test_get_top_details:
+        raise Exception('failed to test get top details')
+    
+    if not test_get_author():
+        raise Exception('failed to test get author')
+    
+    if not test_get_categories():
+        raise Exception('failed to test get categories')
+    
+    if not test_get_description():
+        raise Exception('failed to test get description')
+    
+    if not test_get_counter():
+        raise Exception('failed to test get counter')
+    
+    if not test_get_inst():
+        raise Exception('failed to test get inst')
+    
+    if not test_get_installedpackages():
+        raise Exception('failed to get installed packages')
+    
+    if not test_get_packagesdetails():
+        raise Exception('failed to get packages destails')
+    
+    if not test_uninstall():
+        raise Exception('failed to test uninstall')
+    

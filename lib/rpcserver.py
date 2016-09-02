@@ -1,4 +1,4 @@
-#      backend.py
+#      rpcserver.py
 #      
 #      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
 #      
@@ -17,7 +17,35 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-from service.backend import main
+from lib.user import User
+from lib.bson import dumps
+from lib.package import unpack
+from dpmserver import DPMServer
+from lib.log import show_error
 
-if __name__ == '__main__':
-    main()
+class RPCServer(object):   
+    def __init__(self, addr, port, user=None):
+        self.dpmserver = DPMServer()
+        self.addr = addr
+        self.port = port
+        self.user = user
+    
+    def run(self):
+        self.dpmserver.run(self)
+    
+    def __proc(self, op, args, kwargs):
+        res = ''
+        func = getattr(self, op)
+        if func:
+            ret = func(*args, **kwargs)
+            if ret:
+                res = ret
+        return dumps({'res':res})
+    
+    def proc(self, buf):
+        try:
+            op, args, kwargs = unpack(buf)
+            return self.__proc(op, args, kwargs)
+        except:
+           show_error(self, 'failed to process')
+    

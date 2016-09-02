@@ -17,37 +17,92 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
+import struct
+import socket
+from random import randint
+from lib.util import localhost
+from lib.stream import Stream
+from conf.config import PKG_MAX
+from conf.log import LOG_FRONTEND
+from lib.log import show_info, show_error
+from lib.stream import UID_LEN, HEAD_LEN
+from SocketServer import BaseRequestHandler, TCPServer, ThreadingMixIn
+from conf.servers import FRONTEND_PORT, BACKEND_PORT, SERVER_BACKEND
 
-from rpcserver import RPCServer
-from rpcclient import RPCClient
-from lib.log import log_debug
+BODY_MAX = 64
 
-class Frontend(RPCServer):
-    def __init__(self, addr, port):
-        super(Frontend, self).__init__(addr, port)
-        self.rpcclient = RPCClient('127.0.0.1', 9002)
-        
-    def matchfunc(self, a, b, c = 3):
-        x = a
-        y = b
-        z = c
-        return x+y+c
+class FrontendHandler(BaseRequestHandler):
+    def _get_backend(self, uid):
+        n = randint(0, len(SERVER_BACKEND) - 1)
+        return SERVER_BACKEND[n]
     
-    def upload(self, username, name, version, src_type, buf):
-        #rpcclient =  RPCClient('127.0.0.1', 9002)
-        ret = self.rpcclient.request('upload', [username], {'name':name, 'version':version, 'src_type':src_type, 'buf':buf})
-        log_debug('Frontend.upload()', 'the return of Backend.upload() is : %s' % str(ret))
-        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! lack a judgement of returning True or False 
-        return True
+    def _print(self, text):
+        if LOG_FRONTEND:
+            show_info(self, text)
     
-    def download_src(self, username, src_name, src_type):
-        ret = self.rpcclient.request('download_src', [username], {'src_name':src_name, 'src_type':src_type})
-        return ret
-        
+    def _forward(self, uid, src, dest):
+        self._print('start to forward, uid=%s' % str(uid))
+        dest.sendall(uid)
+        buf = src.recv(HEAD_LEN - UID_LEN)
+        if len(buf) != HEAD_LEN - UID_LEN:
+            show_error(self, 'failed to forward, invalid head, len=%d' % len(buf))
+            return
+        dest.sendall(buf)
+        total, = struct.unpack('I', buf[-4:])
+        if not total or total >=  PKG_MAX / BODY_MAX:
+            show_error(self, 'failed to forward, invalid head, total=%d' % total)
+            return
+        cnt = 0
+        while cnt < total:
+            head = src.recv(2)
+            if len(head) != 2:
+                show_error(self, 'failed to forward, invalid packet')
+                return
+            dest.sendall(head)
+            length, = struct.unpack('H', head)
+            if length > BODY_MAX:
+                show_error(self, 'failed to forward, invalid length')
+                return
+            body = ''
+            while len(body) < length:
+                buf = src.recv(length - len(body))
+                if not buf:
+                    show_error(self, 'failed to forward')
+                    return
+                body += buf
+            if len(body) != length:
+                show_error(self, 'failed to forward')
+                return
+            dest.sendall(body)
+            cnt += 1
+        dest.recv(1)
+        src.sendall('0')
     
+    def handle(self):
+        uid = self.request.recv(UID_LEN)
+        if len(uid) != UID_LEN:
+            show_error(self, 'failed to handle, invalid head')
+            return
+        addr = self._get_backend(uid)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((addr, BACKEND_PORT))
+        try:
+            self._forward(uid, self.request, sock)
+            stream = Stream(sock)
+            _, _, res = stream.readall()
+            stream = Stream(self.request)
+            stream.write(res)
+        finally:
+            sock.close()
+
+class FrontendServer(ThreadingMixIn, TCPServer):
+    pass
+
+class Frontend(object):
+    def run(self, addr, port):
+        self._server = FrontendServer((addr, port), FrontendHandler)
+        self._server.serve_forever()
+
 def main():
-    frontend = Frontend('127.0.0.1', 9001)
-    frontend.run()
-    
-if __name__ == '__main__':
-    main()    
+    frontend = Frontend()
+    frontend.run(localhost(), FRONTEND_PORT)

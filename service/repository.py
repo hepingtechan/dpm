@@ -1,7 +1,7 @@
 #      repository.py
 #      
-#      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
-#      
+#      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>,  Xu Tian <tianxu@iscas.ac.cn>
+#
 #      This program is free software; you can redistribute it and/or modify
 #      it under the terms of the GNU General Public License as published by
 #      the Free Software Foundation; either version 2 of the License, or
@@ -17,65 +17,152 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
+import time
+from threading import Lock
+from lib.db import Database
+from lib.util import localhost
 from threading import Thread
+from hash_ring import HashRing
+from lib.rpcserver import RPCServer
+from conf.log import LOG_REPOSITORY
+from lib.log import show_info, show_error
+from conf.config import SHOW_TIME, DEBUG, HDFS
+from conf.servers import  SERVER_REPODB, SERVER_UPLOADER, SERVER_REPOSITORY, REPOSITORY_PORT
 
-from rpcserver import RPCServer
-from ftpclient import FTPClient
-from ftpserver import FTPServer
-from lib.log import log_debug
-from lib.upload_register import write_upload_log
+if SHOW_TIME:
+    from datetime import datetime
 
+if HDFS:
+    from conf.hadoop import HDFS_PORT
+    from lib.hdfsclient import HDFSClient
+else:
+    from lib.ftpclient import FTPClient
+    from lib.ftpserver import FTPServer
+
+FTP_PORT = 21
+LOCK_MAX = 1024
 
 class Repository(RPCServer):
+    def _print(self, text):
+        if LOG_REPOSITORY:
+            show_info(self, text)
+    
     def __init__(self, addr, port):
-        super(Repository, self).__init__(addr, port)
-        self.ftpclient = FTPClient()
-        self.ftpserver = FTPServer()
+        RPCServer.__init__(self, addr, port)
+        len_up = len(SERVER_UPLOADER)
+        len_repo = len(SERVER_REPOSITORY)
+        if len_up < len_repo or len_up % len_repo != 0:
+            show_error(self, 'failed to initialize')
+            raise Exception('failed to initialize')
+        addr = localhost()
+        if addr not in SERVER_REPOSITORY:
+            show_error(self, 'failed to initialize')
+            raise Exception('failed to initialize ')
+        for i in range(len(SERVER_REPOSITORY)):
+            if  addr == SERVER_REPOSITORY[i]:
+                break
+        total = len_up / len_repo 
+        self._upload_servers = SERVER_UPLOADER[i * total:(i + 1) * total]
+        self._print('upload_servers=%s' % str(self._upload_servers))
+        if HDFS:
+            self._port = HDFS_PORT
+            self._client = HDFSClient()
+        else:
+            self._port = FTP_PORT
+            self._client = FTPClient()
+            self._server = FTPServer()
+        if SERVER_REPODB:
+            self._db = Database(addr=SERVER_REPODB[0])
+        else:
+            self._db = Database(addr=addr)
+        locks = []
+        for _ in range(LOCK_MAX):
+            locks.append(Lock())
+        self._locks = HashRing(locks)
+        if DEBUG:
+            self._upload_cnt = 0
+            self._download_cnt = 0
     
-    def upload(self, username, name, version, src_type, buf):
-        ret = self.upload_src(name, version, buf)
-        self.upload_register(username, name, version, src_type)
-        
-    def upload_src(self, name, version, buf):
-        addr, port = calculate_the_ftpserver_addr()
-        ret = self.ftpclient.upload(addr, port, name, version, buf)
-        log_debug('Repository.upload()', 'the return of FTPClient.upload() is : %s' % str(ret))
-        return ret
+    def _get_addr(self, package):
+        ring = HashRing(self._upload_servers)
+        addr = ring.get_node(package)
+        return addr
     
-    def upload_register(self, username, name, version, src_type):
-        write_upload_log(username, name, version, src_type)
-        
-    def install(self, username, name, version, src_type):
-        pass
-        #return self.download_src(name, version, src_type)
-        
+    def _get_lock(self, package):
+        return self._locks.get_node(package)
     
-    def download_src(self, username, src_name, src_type):
-        addr, port = calculate_the_ftpserver_addr()
-        ret = self.ftpclient.download(addr, port, src_name, src_type)
-        return ret
+    def _upload(self, package, version, buf):
+        addr = self._get_addr(package)
+        return self._client.upload(addr, self._port, package, version, buf)
     
-    def install_register(self):
-        pass
+    def upload(self, uid, package, version, buf):
+        self._print('start to upload, uid=%s, package=%s, version=%s' % (str(uid), str(package), str(version)))
+        lock = self._get_lock(package)
+        lock.acquire()
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            owner, ver = self._db.get_version(package)
+            if owner and owner != uid:
+                show_error(self, 'failed to upload, invalid owner, package=%s, version=%s' % (str(package), str(version)))
+                return False
+            if ver == version:#The version of package has been uploaded.
+                show_error(self, 'failed to upload, invalid version, package=%s, version=%s' % (str(package), str(version)))
+                return False
+            else:
+                ret = self._upload(package, version, buf)
+                if not ret:
+                    show_error(self, 'failed to upload, %s cannot upload %s-%s to hdfs' % (str(uid), str(package), str(version)))
+                    return False
+                self._db.set_package(uid, package, version, '')
+                if not ver or ver < version:
+                    self._db.set_version(uid, package, version)
+                self._print('finished uploading, package=%s, version=%s' % (str(package), str(version)))
+                if DEBUG:
+                    self._upload_cnt += 1
+                    self._print('upload, count=%d' % self._upload_cnt)
+                if SHOW_TIME:
+                    self._print('upload, time=%d sec' % (datetime.utcnow() - start_time).seconds)
+                return True
+        finally:
+            lock.release()
+    
+    def download(self, package, version):
+        self._print('start to download, package=%s, version=%s' % (str(package), str(version)))
+        try:
+            if SHOW_TIME:
+                start_time = datetime.utcnow()
+            addr = self._get_addr(package)
+            uid, ver = self._db.get_version(package)
+            if not version:
+                version = ver
+            if not self._db.has_package(uid, package, version):
+                show_error(self, 'failed to download, invalid version, package=%s, version=%s' % (str(package), str(version)))
+                return
+            if SHOW_TIME:
+                self._print( 'download, time=%d sec' % (datetime.utcnow() - start_time).seconds)            
+            res = self._client.download(addr, self._port, package, version)
+            if res:
+                if DEBUG:
+                    self._download_cnt += 1
+                    self._print('download, count=%d' % self._download_cnt)
+                print 'Repository res=%s' % str(res)
+                return res
+        except:
+            show_error(self, 'failed to download')
+    
+    def version(self, package):
+        self._print('start to get version, uid=%s, package=%s' % (str(uid), str(package)))
+        _, ver = self._db.get_version(package)
+        return ver
     
     def start(self):
         t = Thread(target=self.run)
         t.start()
-        self.ftpserver.run()
+        if not HDFS:
+            self._server.run()
         t.join()
-        
-        
-def calculate_the_ftpserver_addr():
-    addr = '127.0.0.1'
-    port = 21
-    return addr, port 
 
-    
 def main():
-    repo = Repository('127.0.0.1', 9003)
+    repo = Repository(localhost(), REPOSITORY_PORT)
     repo.start()
-    
-
-if __name__ == '__main__':
-    main()

@@ -17,25 +17,22 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
 import os
-
 from twisted.internet import reactor
-from twisted.cred.portal import Portal, IRealm
 from zope.interface import implements
 from twisted.python.filepath import FilePath
+from twisted.cred.portal import Portal, IRealm
+from conf.path import PATH_REPO, PATH_ADMIN
 from twisted.protocols.ftp import FTPFactory, IFTPShell, FTPShell, FTPAnonymousShell
 from twisted.cred.checkers import AllowAnonymousAccess, FilePasswordDB, ANONYMOUS
-
-from conf.config import PATH_FTPSERVER_ON_REPO
 
 class DPMFTPRealm():
     implements(IRealm)
     def __init__(self, anonymousRoot):
         self.anonymousRoot = FilePath(anonymousRoot)
-        self.dir = PATH_FTPSERVER_ON_REPO
-        if not os.path.isdir(PATH_FTPSERVER_ON_REPO):
-            os.makedirs(PATH_FTPSERVER_ON_REPO)
+        self.dir = PATH_REPO
+        if not os.path.isdir(PATH_REPO):
+            os.makedirs(PATH_REPO)
         
     def requestAvatar(self, avatarId, mind, *interfaces):
         for iface in interfaces:
@@ -45,19 +42,15 @@ class DPMFTPRealm():
                 else:
                     user_dir = self.dir
                     avatar = FTPShell(FilePath(user_dir))
-                return  IFTPShell, avatar, \
-                       getattr(avatar, 'logout', lambda: None)
-        raise NotImplementedError(\
-            "Only IFTPShell interface is supported by this realm")       
-
+                return  IFTPShell, avatar, getattr(avatar, 'logout', lambda: None)
+        raise NotImplementedError( "Only IFTPShell interface is supported by this realm")       
 
 class FTPServer():
     def __init__(self, port=21):
-        #!!!!!!!!!!!!!!!!!!!path of user.db
-        self.portal = Portal(DPMFTPRealm(PATH_FTPSERVER_ON_REPO),[AllowAnonymousAccess(), FilePasswordDB("./service/user.db")])        
+        self.portal = Portal(DPMFTPRealm(PATH_REPO), [AllowAnonymousAccess(), FilePasswordDB(PATH_ADMIN)])        
         self.factory = FTPFactory(self.portal)
         self._port = port
      
-    def run(self):    
+    def run(self):
         reactor.listenTCP(self._port, self.factory)
         reactor.run()

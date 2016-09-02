@@ -1,4 +1,4 @@
-#      path.py
+#      rpcclient.py
 #      
 #      Copyright (C) 2015 Xiao-Fang Huang <huangxfbnu@163.com>
 #      
@@ -17,13 +17,19 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
+from lib.bson import loads
+from lib.package import pack
+from dpmclient import DPMClient
 
-import os, tempfile
-
-def build_tmp_dir():
-    return tempfile.mkdtemp()
-
-def make_tmp_name():
-    tmp_path = tempfile.mktemp()
-    return os.path.split(tmp_path)[-1]
-
+class RPCClient():
+    def __init__(self, addr, port, uid=None, key=None):
+        self.dpmclient = DPMClient(uid, key)
+        self.addr = addr
+        self.port = port
+        
+    def request(self, op, *args, **kwargs):
+        buf = pack(op, args, kwargs)
+        res = self.dpmclient.request(self.addr, self.port, buf)
+        if res:
+            ret = loads(res)
+            return ret['res']

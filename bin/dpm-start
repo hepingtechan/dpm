@@ -1,0 +1,97 @@
+#!/usr/bin/python
+
+import os
+import sys
+import resource
+import commands
+from threading import Thread
+
+_name = commands.getoutput('readlink -f %s' % sys.argv[0])
+_path = os.path.dirname(_name)
+_dir = os.path.dirname(_path)
+sys.path.append(_dir)
+
+from lib.util import localhost
+from lib.log import log_debug 
+from lib.rpcclient import RPCClient
+from conf.path import PATH_DRIVER, PATH_ADMIN, PATH_REPO, PATH_SHELVEDB
+from conf.servers import SERVER_FRONTEND, SERVER_BACKEND, SERVER_MANAGER, SERVER_RECORDER, SERVER_INSTALLER, SERVER_ALLOCATOR, SERVER_REPOSITORY, ALLOCATOR_PORT
+
+def create_paths():
+    if not os.path.exists(PATH_DRIVER):
+        os.makedirs(PATH_DRIVER, 0o755)
+    
+    dirname = os.path.dirname(PATH_ADMIN)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, 0o755)
+    
+    if not os.path.exists(PATH_REPO):
+        os.makedirs(PATH_REPO, 0o755)
+    
+    if not os.path.exists(PATH_SHELVEDB):
+        os.makedirs(PATH_SHELVEDB, 0o755)
+
+def _check_installer(addr):
+    for i in range(len(SERVER_INSTALLER)):
+        if SERVER_INSTALLER[i] == addr:
+            pos = i % len(SERVER_ALLOCATOR)
+            break
+    
+    allocator = SERVER_ALLOCATOR[pos]
+    rpcclient = RPCClient(allocator, ALLOCATOR_PORT)
+    res = rpcclient.request('check_installer', addr=addr)
+    if not res:
+        rpcclient = RPCClient(allocator, ALLOCATOR_PORT)
+        res = rpcclient.request('add_installer', addr=addr)
+        if res:
+            log_debug('dpm-start', 'add installer, installer=%s' % str(addr))
+        else:
+            log_debug('dpm-start', 'failed to add installer')
+            raise Exception('failed to add installer')
+
+def create_servers():
+    targets = []
+    addr = localhost()
+    
+    if addr in SERVER_ALLOCATOR:
+        from service import allocator
+        targets.append(allocator.main)
+    
+    if addr in SERVER_FRONTEND:
+        from service import frontend
+        targets.append(frontend.main)
+     
+    if addr in SERVER_MANAGER:
+        from service import manager
+        targets.append(manager.main)
+    
+    if addr in SERVER_BACKEND:
+        from service import backend
+        targets.append(backend.main)
+    
+    if addr in SERVER_REPOSITORY:
+        from service import repository
+        targets.append(repository.main)
+    
+    if addr in SERVER_INSTALLER:
+        from service import installer
+        targets.append(installer.main)
+       
+    
+    if addr in SERVER_RECORDER:
+        from service import recorder
+        targets.append(recorder.main)
+    
+    if targets:
+        n = len(targets) - 1
+        for i in range(n):
+            Thread(target=targets[i]).start()
+        if addr in SERVER_INSTALLER:
+            _check_installer(addr)
+        targets[n]()
+
+if __name__ == '__main__':
+    max_open_files_soft, max_open_files_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, max_open_files_hard))
+    create_paths()
+    create_servers()

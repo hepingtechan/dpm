@@ -17,41 +17,38 @@
 #      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #      MA 02110-1301, USA.
 
-
-from threading import Lock, Event
+import rsa
 import socket
+from threading import Lock
+from lib.stream import Stream
 
 class DPMClient():   
-    def __init__(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.ev = Event()
+    def __init__(self, uid=None, key=None):
         self._lock = Lock()
-          
+        self._uid = uid
+        self._key = None
+        if key:
+            self._key = rsa.PublicKey.load_pkcs1(key)
+      
     def request(self, addr, port, buf):
         self._lock.acquire()
         try:
-            self.sock.connect((addr, port))
-            try:
-                self.sock.sendall(buf)
-                response = self.sock.recv(1024)
-                self.setResult(response)
-                return self.getResult()
-            finally:
-                self.sock.close()
+            return self._request(addr, port, buf)
         finally:
             self._lock.release()
-
-    def setResult(self, buf):
-        self.ev.set()
-        self.result = buf
     
-    def getResult(self):
-        self.ev.wait()
-        return self.result
-
-
-if __name__ == '__main__':
-    cli = DPMClient()
-    res = cli.request('127.0.0.1', 9019, 'asfasdfasdf')
-    print(str(res))
-
+    def _request(self, addr, port, buf):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((addr, port))
+        try:
+            if self._key:
+                stream = Stream(sock, uid=self._uid, key=self._key)
+            else:
+                stream = Stream(sock)
+            stream.write( buf)
+            if self._key:
+                stream = Stream(sock)
+            _, _, res = stream.readall()
+            return res
+        finally:
+            sock.close()
