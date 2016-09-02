@@ -64,13 +64,11 @@ class Manager(object):
     def _get_user_backend(self, user):
         ring = HashRing(SERVER_BACKEND)
         uid = get_uid(user)
-        server = ring.get_node(uid)
-        return server
+        return ring.get_node(uid) 
     
     def _get_backend(self):
         n = randint(0, len(SERVER_BACKEND) - 1)
-        server =  SERVER_BACKEND[n]
-        return server
+        return SERVER_BACKEND[n]
     
     def upload(self, buf, uid, package, version, typ, key):
         ret = upload_package(buf, uid, package, version, typ, key)
@@ -81,7 +79,7 @@ class Manager(object):
             return False
     
     def download(self, package, version):
-        self._print('download, package=%s, version=%s' %(str(package), str(vetsion)))
+        self._print('download, package=%s, version=%s' %(str(package), str(version)))
         try:
             addr = self._get_backend()
             rpcclient = RPCClient(addr, BACKEND_PORT)
@@ -309,6 +307,7 @@ class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
             show_error(self, 'invalid message length' )
             return
         ret = ''
+        result = ''
         info = json.loads(message)
         if not info or type(info) != dict or len(info) < 1:
             show_error(self, 'invalid message' )
@@ -340,14 +339,14 @@ class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
                 version = info['version']
                 package = info['package']
                 desc = info['description']
-                
-                if not uid or not key or not typ or not desc or not package or not version:
-                    show_error(self, 'invalid package')
+                if not uid or not key or not typ or not package or not version:
+                    show_error(self, 'invalid upload information')
                     return
+                
                 content = {'description':yaml.dump(desc), 'app':info['app']}
                 buf = zlib.compress(json.dumps(content))
                 ret = manager.upload(buf, uid, package, version, typ, key)
-                result = {'op':'upload', 'data': ret}
+                result = {'op':'upload', 'uid': uid, 'data': ret}
             
             elif op == 'download':
                 uid = info['uid']
@@ -357,6 +356,7 @@ class  ManagerWSHandler(tornado.websocket.WebSocketHandler):
                 result = {'op': 'download', 'uid': uid, 'data': ret}
             
             elif op == 'install':
+                print 'Manager  111--0'
                 uid = info['uid']
                 pkg = info['package']
                 ver = info['version']

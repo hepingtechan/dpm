@@ -11,15 +11,15 @@ _dir = os.path.dirname(_path)
 sys.path.append(_dir)
 
 from lib.log import log_debug 
-from conf.config import ALLOCATOR_PORT
 from lib.rpcclient import RPCClient
+from conf.servers import ALLOCATOR_PORT
 
 def add_installer(allocator, installer):
-    log_debug('manage', 'add_installer, allocator=%s' % str(allocator))
+    log_debug('dpm-inst', 'add_installer, allocator=%s' % str(allocator))
     rpcclient = RPCClient(allocator, ALLOCATOR_PORT)
     res = rpcclient.request('add_installer', addr=installer)
     if res:
-        log_debug('manage', 'add_installer, installer=%s' % str(installer))
+        log_debug('dpm-inst', 'add_installer, installer=%s' % str(installer))
         return True
     return False
 

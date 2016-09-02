@@ -37,7 +37,7 @@ def _check_installer(addr):
             pos = i % len(SERVER_ALLOCATOR)
             break
     
-    allocator =SERVER_ALLOCATOR[pos]
+    allocator = SERVER_ALLOCATOR[pos]
     rpcclient = RPCClient(allocator, ALLOCATOR_PORT)
     res = rpcclient.request('check_installer', addr=addr)
     if not res:
@@ -53,17 +53,21 @@ def create_servers():
     targets = []
     addr = localhost()
     
+    if addr in SERVER_ALLOCATOR:
+        from service import allocator
+        targets.append(allocator.main)
+    
     if addr in SERVER_FRONTEND:
         from service import frontend
         targets.append(frontend.main)
-    
-    if addr in SERVER_BACKEND:
-        from service import backend
-        targets.append(backend.main)
      
     if addr in SERVER_MANAGER:
         from service import manager
         targets.append(manager.main)
+    
+    if addr in SERVER_BACKEND:
+        from service import backend
+        targets.append(backend.main)
     
     if addr in SERVER_REPOSITORY:
         from service import repository
@@ -72,11 +76,7 @@ def create_servers():
     if addr in SERVER_INSTALLER:
         from service import installer
         targets.append(installer.main)
-        _check_installer(addr)
-    
-    if addr in SERVER_ALLOCATOR:
-        from service import allocator
-        targets.append(allocator.main)
+       
     
     if addr in SERVER_RECORDER:
         from service import recorder
@@ -86,6 +86,8 @@ def create_servers():
         n = len(targets) - 1
         for i in range(n):
             Thread(target=targets[i]).start()
+        if addr in SERVER_INSTALLER:
+            _check_installer(addr)
         targets[n]()
 
 if __name__ == '__main__':

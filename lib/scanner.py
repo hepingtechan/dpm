@@ -53,11 +53,9 @@ class Scanner(object):
             show_error(self, 'invalid content')
             return
         files = self._extract(content)
-        if not files:
-            show_error(self, 'failed to extract package')
-            return
-        if not self._do_scan(files):
-            raise Exception('this package contains invalid files')
+        if files:
+            if not self._do_scan(files):
+                raise Exception('this package contains invalid files')
         return content.get('description')
     
     def scan(self, buf):

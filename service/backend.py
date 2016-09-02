@@ -120,8 +120,10 @@ class Backend(RPCServer):
                     return
             
             addr = self._get_repo(package)
+            print addr
             rpcclient = RPCClient(addr, REPOSITORY_PORT)
             res = rpcclient.request('upload', uid=uid, package=package, version=version, buf=buf)
+            print res
             if SHOW_TIME:
                 self._print('upload, upload package to repo, time=%d sec' % (datetime.utcnow() - start_time).seconds)
                 start_time = datetime.utcnow()
@@ -134,7 +136,7 @@ class Backend(RPCServer):
                 start_time = datetime.utcnow()
             if typ == APP:
                 res = self._update(uid, cat, package, args.get('title'), args.get('description'))
-            
+                
             if res:
                 if DEBUG:
                     self._upload_cnt += 1

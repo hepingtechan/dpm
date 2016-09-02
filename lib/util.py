@@ -35,7 +35,7 @@ from lib.rpcclient import RPCClient
 from conf.path import PATH_DRIVER
 from lib.log import log_err, log_debug
 from conf.category import CATEGORIES
-from conf.servers import SERVER_FRONTEND, FRONTEND_PORT
+from conf.servers import SERVER_FRONTEND, FRONTEND_PORT, SERVER_MANAGER, MANAGER_PORT
 
 APP = 'app'
 DRIVER = 'driver'
@@ -49,7 +49,11 @@ def get_filename(package, version):
 def _get_frontend():
     n = randint(0, len(SERVER_FRONTEND) - 1)
     return SERVER_FRONTEND[n]
-    
+
+def get_manager():
+    n = randint(0, len(SERVER_MANAGER) - 1)
+    return SERVER_MANAGER[n]
+
 def get_md5(text):
     if type(text) == str or type(text) == unicode:
         tmp = hashlib.md5()   
@@ -110,7 +114,7 @@ def upload(path, uid, package, version, typ, key):
     if os.path.isdir(path):
         content = dump_content(path)
         buf = zlib.compress(json.dumps(content))
-        upload_package(buf, uid, package, version, typ, key)
+        return upload_package(buf, uid, package, version, typ, key)
 
 def upload_driver(path, uid, package, version, key):
     return upload(path, uid, package, version, DRIVER, key)
@@ -198,6 +202,7 @@ def _check_dep(buf):
         if status != 0:
             log_err('util', 'failed to check dependency')
             return
+    
     return True
 
 def localhost():

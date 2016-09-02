@@ -60,3 +60,4 @@ if [ "$1" = '-r' ]; then
 	pip install pymongo
 	pip install hash_ring
 fi
+
